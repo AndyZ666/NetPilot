@@ -1,0 +1,72 @@
+! Startup-config last modified at Wed Sep  9 22:17:25 2026 by root
+! device: S3 (cEOSLab, EOS-4.36.2F-49692818.4362F (engineering build))
+!
+no aaa root
+!
+username admin privilege 15 role network-admin secret sha512 $6$sv5DY3VdD7FurxgF$OKZeJt990O6NUdheMRfsZ6FulGwjuEea94C0bnZs7SIQqCMKp6WBf.dqxd5KoD55D4d3oGvSJI.OU5cz6PCqL0
+!
+management api http-commands
+   no shutdown
+!
+no service interface inactive port-id allocation disabled
+!
+service routing protocols model multi-agent
+!
+hostname S3
+!
+spanning-tree mode mstp
+!
+system l1
+   unsupported speed action error
+   unsupported error-correction action error
+!
+management api gnmi
+   transport grpc default
+!
+management api netconf
+   transport ssh default
+!
+interface Ethernet1
+   description to-R3-eth2
+   no switchport
+   ip address 10.3.33.2/30
+   ipv6 address 2001:db8:3:33::2/64
+   ipv6 ospf 10 area 0.0.0.0
+!
+interface Ethernet2
+   description to-s4-eth2
+   no switchport
+   ip address 10.33.44.1/30
+   ipv6 address 2001:db8:33:44::1/64
+   ipv6 ospf 10 area 0.0.0.0
+!
+interface Ethernet3
+   description TO-R1_ETH1
+   no switchport
+   ip address 10.1.33.2/30
+   ipv6 address 2001:db8:1:33::2/64
+   ipv6 ospf 10 area 0.0.0.0
+!
+interface Management0
+   ip address 172.20.20.4/24
+   ipv6 address 3fff:172:20:20::4/64
+!
+ip routing
+!
+ipv6 unicast-routing
+!
+ip route 0.0.0.0/0 172.20.20.1
+!
+ipv6 route ::/0 3fff:172:20:20::1
+!
+router ospf 10
+   router-id 33.33.33.33
+   network 10.1.33.0/30 area 0.0.0.0
+   network 10.3.33.0/30 area 0.0.0.0
+   network 10.33.44.0/30 area 0.0.0.0
+   max-lsa 12000
+!
+ipv6 router ospf 10
+   router-id 33.33.33.33
+!
+end

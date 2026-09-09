@@ -1,0 +1,121 @@
+! Startup-config last modified at Wed Sep  9 22:17:25 2026 by root
+! device: R2 (cEOSLab, EOS-4.36.2F-49692818.4362F (engineering build))
+!
+no aaa root
+!
+username admin privilege 15 role network-admin secret sha512 $6$Z2R6sNyKiN4cujvX$axsM0w/UyWbEDyuf/cYSaQado/Sy4/Gqzj0Hrmq7/ORnL4a3nyo2eg6c8jh5v6lzfSrORQ95GALAcg8KnrGYR.
+!
+management api http-commands
+   no shutdown
+!
+dhcp server
+   lease time ipv4 1 days 0 hours 0 minutes
+   lease time ipv6 1 days 0 hours 0 minutes
+   !
+   subnet 10.0.10.0/24
+      range 10.0.10.150 10.0.10.200
+      name VLAN10-DHCPv4
+      default-gateway 10.0.10.1
+   !
+   subnet 10.0.20.0/24
+      range 10.0.20.150 10.0.20.200
+      name VLAN20-DHCPv4
+      default-gateway 10.0.20.1
+   !
+   subnet 2001:db8:10::/64
+      range 2001:db8:10::150 2001:db8:10::1ff
+      name VLAN10-DHCPv6
+   !
+   subnet 2001:db8:20::/64
+      range 2001:db8:20::150 2001:db8:20::1ff
+      name VLAN20-DHCPv6
+   !
+   subnet 2001:db8:30::/64
+      range 2001:db8:30::150 2001:db8:30::1ff
+      name VLAN30-DHCPv6
+!
+no service interface inactive port-id allocation disabled
+!
+service routing protocols model multi-agent
+!
+hostname R2
+!
+spanning-tree mode mstp
+!
+system l1
+   unsupported speed action error
+   unsupported error-correction action error
+!
+management api gnmi
+   transport grpc default
+!
+management api netconf
+   transport ssh default
+!
+interface Ethernet1
+   description to-S4-eth3
+   no switchport
+   ip address 10.2.44.1/30
+   ipv6 address 2001:db8:2:44::1/64
+   ipv6 ospf 10 area 0.0.0.0
+!
+interface Ethernet2
+   no switchport
+   ip address 10.2.22.1/30
+   dhcp server ipv4
+   dhcp server ipv6
+   ipv6 address 2001:db8:2:22::1/64
+   ipv6 ospf 10 area 0.0.0.0
+!
+interface Management0
+   ip address 172.20.20.14/24
+   ipv6 address 3fff:172:20:20::e/64
+!
+ip routing
+!
+ip prefix-list CORE-OSPF-PREFIXES seq 10 permit 10.1.33.0/30
+ip prefix-list CORE-OSPF-PREFIXES seq 20 permit 10.2.44.0/30
+ip prefix-list CORE-OSPF-PREFIXES seq 30 permit 10.3.33.0/30
+ip prefix-list CORE-OSPF-PREFIXES seq 40 permit 10.4.44.0/30
+ip prefix-list CORE-OSPF-PREFIXES seq 50 permit 10.33.44.0/30
+ip prefix-list CORE-OSPF-PREFIXES seq 60 permit 10.3.4.0/30
+ip prefix-list CORE-OSPF-PREFIXES seq 70 permit 203.0.113.0/30
+ip prefix-list LOWER-RIP-PREFIXES seq 10 permit 10.0.10.0/24
+ip prefix-list LOWER-RIP-PREFIXES seq 20 permit 10.0.20.0/24
+ip prefix-list LOWER-RIP-PREFIXES seq 30 permit 10.1.11.0/30
+ip prefix-list LOWER-RIP-PREFIXES seq 40 permit 10.12.12.0/30
+ip prefix-list LOWER-RIP-PREFIXES seq 50 permit 10.2.22.0/30
+ip prefix-list rip-connected-r2 seq 10 permit 10.2.22.0/30
+!
+ipv6 unicast-routing
+!
+route-map OSPF-TO-RIP permit 10
+   match ip address prefix-list CORE-OSPF-PREFIXES
+!
+route-map R2-connected-to-ospf permit 10
+   match ip address prefix-list LOWER-RIP-PREFIXES
+!
+route-map RIP-TO-OSPF permit 10
+   match ip address prefix-list LOWER-RIP-PREFIXES
+!
+route-map rip-connected-r2 permit 10
+   match ip address prefix-list rip-connected-r2
+!
+router ospf 10
+   router-id 2.2.2.2
+   redistribute connected route-map R2-connected-to-ospf
+   redistribute rip route-map RIP-TO-OSPF
+   network 10.2.44.0/30 area 0.0.0.0
+   max-lsa 12000
+!
+ipv6 router ospf 10
+   router-id 2.2.2.2
+!
+router rip
+   network 10.2.22.0/30
+   redistribute ospf match internal route-map OSPF-TO-RIP
+   redistribute ospf match external route-map OSPF-TO-RIP
+   redistribute connected route-map rip-connected-r2
+   no shutdown
+!
+end
