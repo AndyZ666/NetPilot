@@ -1,0 +1,43 @@
+all:
+  vars:
+    # The generated inventory is assumed to be used from the clab host.
+    # Hence no http proxy should be used. Therefore we make sure the http
+    # module does not attempt using any global http proxy.
+    ansible_httpapi_use_proxy: false
+  children:
+    ceos:
+      vars:
+        # ansible_connection: set ansible_connection variable if required
+        ansible_user: admin
+        ansible_password: admin
+      hosts:
+        clab-pilot-network-R1:
+          ansible_host: 172.20.20.13
+        clab-pilot-network-R2:
+          ansible_host: 172.20.20.14
+        clab-pilot-network-R3:
+          ansible_host: 172.20.20.9
+        clab-pilot-network-R4:
+          ansible_host: 172.20.20.11
+        clab-pilot-network-R5:
+          ansible_host: 172.20.20.2
+        clab-pilot-network-S1:
+          ansible_host: 172.20.20.7
+        clab-pilot-network-S2:
+          ansible_host: 172.20.20.8
+        clab-pilot-network-S3:
+          ansible_host: 172.20.20.4
+        clab-pilot-network-S4:
+          ansible_host: 172.20.20.10
+    linux:
+      hosts:
+        clab-pilot-network-H1:
+          ansible_host: 172.20.20.12
+        clab-pilot-network-H2:
+          ansible_host: 172.20.20.3
+        clab-pilot-network-H3:
+          ansible_host: 172.20.20.15
+        clab-pilot-network-H4:
+          ansible_host: 172.20.20.6
+        clab-pilot-network-web-server:
+          ansible_host: 172.20.20.5

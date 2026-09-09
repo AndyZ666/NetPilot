@@ -1,0 +1,82 @@
+IP Address,VRF,Status,Role,Tenant,Assigned,DNS name,Description,ID,Tenant Group,NAT (Inside),NAT (Outside),Comments,Contacts,Tags,Created,Last updated,Owner Group,Owner,Interface,Parent
+10.0.10.1/24,Global,Active,,,1138,,S1 VLAN10 IPv4 gateway,459,,,,,,,2026-09-09T21:09:52.747433+00:00,2026-09-09T21:36:02.455798+00:00,,,Vlan10,S1
+10.0.20.1/24,Global,Active,,,1139,,S1 VLAN20 IPv4 gateway,461,,,,,,,2026-09-09T21:09:52.800326+00:00,2026-09-09T21:36:02.496253+00:00,,,Vlan20,S1
+10.1.11.1/30,Global,Active,,,1117,,R1 side of R1-S1 transit,464,,,,,,,2026-09-09T21:09:52.874659+00:00,2026-09-09T21:36:02.524555+00:00,,,Ethernet2,R1
+10.1.11.2/30,Global,Active,,,1134,,S1 side of R1-S1 transit,465,,,,,,,2026-09-09T21:09:52.899748+00:00,2026-09-09T21:36:02.551329+00:00,,,Ethernet1,S1
+10.1.33.1/30,Global,Active,,,1116,,R1 side of R1-S3 transit,470,,,,,,,2026-09-09T21:09:53.062245+00:00,2026-09-09T21:36:02.577533+00:00,,,Ethernet1,R1
+10.1.33.2/30,Global,Active,,,1151,,S3 side of R1-S3 transit,471,,,,,,,2026-09-09T21:09:53.087496+00:00,2026-09-09T21:36:02.604380+00:00,,,Ethernet3,S3
+10.2.22.1/30,Global,Active,,,1120,,R2 side of S2-R2 transit,469,,,,,,,2026-09-09T21:09:53.036480+00:00,2026-09-09T21:36:02.630462+00:00,,,Ethernet2,R2
+10.2.22.2/30,Global,Active,,,1143,,S2 side of S2-R2 transit,468,,,,,,,2026-09-09T21:09:52.995292+00:00,2026-09-09T21:36:02.656061+00:00,,,Ethernet1,S2
+10.2.44.1/30,Global,Active,,,1119,,R2 side of R2-S4 transit,472,,,,,,,2026-09-09T21:09:53.115925+00:00,2026-09-09T21:36:02.685592+00:00,,,Ethernet1,R2
+10.2.44.2/30,Global,Active,,,1155,,S4 side of R2-S4 transit,473,,,,,,,2026-09-09T21:09:53.143417+00:00,2026-09-09T21:36:02.714043+00:00,,,Ethernet3,S4
+10.3.4.1/30,Global,Active,,,1124,,R3 side of R3-R4 transit,480,,,,,,,2026-09-09T21:09:53.332986+00:00,2026-09-09T21:36:02.742584+00:00,,,Ethernet3,R3
+10.3.4.2/30,Global,Active,,,1128,,R4 side of R3-R4 transit,481,,,,,,,2026-09-09T21:09:53.359017+00:00,2026-09-09T21:36:02.768657+00:00,,,Ethernet3,R4
+10.3.5.1/30,Global,Active,,,1122,,R3 side of R3-R5 eBGP transit,482,,,,,,,2026-09-09T21:09:53.388498+00:00,2026-09-09T21:36:02.796118+00:00,,,Ethernet1,R3
+10.3.5.2/30,Global,Active,,,1131,,R5 side of R3-R5 eBGP transit,483,,,,,,,2026-09-09T21:09:53.417700+00:00,2026-09-09T21:36:02.824190+00:00,,,Ethernet2,R5
+10.3.33.1/30,Global,Active,,,1123,,R3 side of R3-S3 transit,474,,,,,,,2026-09-09T21:09:53.170546+00:00,2026-09-09T21:36:02.852105+00:00,,,Ethernet2,R3
+10.3.33.2/30,Global,Active,,,1149,,S3 side of R3-S3 transit,475,,,,,,,2026-09-09T21:09:53.197180+00:00,2026-09-09T21:36:02.883968+00:00,,,Ethernet1,S3
+10.4.5.1/30,Global,Active,,,1126,,R4 side of R4-R5 eBGP transit,484,,,,,,,2026-09-09T21:09:53.445953+00:00,2026-09-09T21:36:02.915463+00:00,,,Ethernet1,R4
+10.4.5.2/30,Global,Active,,,1132,,R5 side of R4-R5 eBGP transit,485,,,,,,,2026-09-09T21:09:53.475583+00:00,2026-09-09T21:36:02.966988+00:00,,,Ethernet3,R5
+10.4.44.1/30,Global,Active,,,1127,,R4 side of R4-S4 transit,476,,,,,,,2026-09-09T21:09:53.224125+00:00,2026-09-09T21:36:02.992911+00:00,,,Ethernet2,R4
+10.4.44.2/30,Global,Active,,,1153,,S4 side of R4-S4 transit,477,,,,,,,2026-09-09T21:09:53.251340+00:00,2026-09-09T21:36:03.020062+00:00,,,Ethernet1,S4
+10.12.12.1/30,Global,Active,,,1141,,S1 side of S1-S2 transit VLAN900,466,,,,,,,2026-09-09T21:09:52.935612+00:00,2026-09-09T21:36:03.049412+00:00,,,Vlan900,S1
+10.12.12.2/30,Global,Active,,,1147,,S2 side of S1-S2 transit VLAN900,467,,,,,,,2026-09-09T21:09:52.963955+00:00,2026-09-09T21:36:03.075134+00:00,,,Vlan900,S2
+10.33.44.1/30,Global,Active,,,1150,,S3 side of S3-S4 transit,478,,,,,,,2026-09-09T21:09:53.276203+00:00,2026-09-09T21:36:03.105826+00:00,,,Ethernet2,S3
+10.33.44.2/30,Global,Active,,,1154,,S4 side of S3-S4 transit,479,,,,,,,2026-09-09T21:09:53.303501+00:00,2026-09-09T21:36:03.132667+00:00,,,Ethernet2,S4
+172.20.20.2/24,Global,Active,,,1129,,R5 Containerlab OOB management IPv4,528,,,,,,,2026-09-09T22:03:54.702429+00:00,2026-09-09T22:03:54.702439+00:00,,,Management0,R5
+172.20.20.3/24,Global,Active,,,,,H2 Containerlab OOB management IPv4,514,,,,,,,2026-09-09T22:03:54.369339+00:00,2026-09-09T22:03:54.369352+00:00,,,,
+172.20.20.4/24,Global,Active,,,1148,,S3 Containerlab OOB management IPv4,534,,,,,,,2026-09-09T22:03:54.865200+00:00,2026-09-09T22:03:54.865211+00:00,,,Management0,S3
+172.20.20.5/24,Global,Active,,,,,web-server Containerlab OOB management IPv4,538,,,,,,,2026-09-09T22:03:54.983073+00:00,2026-09-09T22:03:54.983085+00:00,,,,
+172.20.20.6/24,Global,Active,,,,,H4 Containerlab OOB management IPv4,518,,,,,,,2026-09-09T22:03:54.463567+00:00,2026-09-09T22:03:54.463578+00:00,,,,
+172.20.20.7/24,Global,Active,,,1133,,S1 Containerlab OOB management IPv4,530,,,,,,,2026-09-09T22:03:54.752392+00:00,2026-09-09T22:03:54.752403+00:00,,,Management0,S1
+172.20.20.8/24,Global,Active,,,1142,,S2 Containerlab OOB management IPv4,532,,,,,,,2026-09-09T22:03:54.814731+00:00,2026-09-09T22:03:54.814741+00:00,,,Management0,S2
+172.20.20.9/24,Global,Active,,,1121,,R3 Containerlab OOB management IPv4,524,,,,,,,2026-09-09T22:03:54.605006+00:00,2026-09-09T22:03:54.605016+00:00,,,Management0,R3
+172.20.20.10/24,Global,Active,,,1152,,S4 Containerlab OOB management IPv4,536,,,,,,,2026-09-09T22:03:54.914211+00:00,2026-09-09T22:03:54.914222+00:00,,,Management0,S4
+172.20.20.11/24,Global,Active,,,1125,,R4 Containerlab OOB management IPv4,526,,,,,,,2026-09-09T22:03:54.655467+00:00,2026-09-09T22:03:54.655478+00:00,,,Management0,R4
+172.20.20.12/24,Global,Active,,,,,H1 Containerlab OOB management IPv4,512,,,,,,,2026-09-09T22:03:54.311462+00:00,2026-09-09T22:03:54.311476+00:00,,,,
+172.20.20.13/24,Global,Active,,,1115,,R1 Containerlab OOB management IPv4,520,,,,,,,2026-09-09T22:03:54.509824+00:00,2026-09-09T22:03:54.509835+00:00,,,Management0,R1
+172.20.20.14/24,Global,Active,,,1118,,R2 Containerlab OOB management IPv4,522,,,,,,,2026-09-09T22:03:54.557011+00:00,2026-09-09T22:03:54.557022+00:00,,,Management0,R2
+172.20.20.15/24,Global,Active,,,,,H3 Containerlab OOB management IPv4,516,,,,,,,2026-09-09T22:03:54.420539+00:00,2026-09-09T22:03:54.420552+00:00,,,,
+203.0.113.1/30,Global,Active,,,1130,,R5 side of R5-Web server link,486,,,,,,,2026-09-09T21:09:53.501004+00:00,2026-09-09T21:36:03.169621+00:00,,,Ethernet1,R5
+203.0.113.2/30,Global,Active,,,,,Web server IPv4 address,487,,,,,,,2026-09-09T21:09:53.526766+00:00,2026-09-09T21:09:53.526780+00:00,,,,
+2001:db8:1:11::1/64,Global,Active,,,1117,,R1 side of R1-S1 IPv6 transit,488,,,,,,,2026-09-09T22:02:49.290933+00:00,2026-09-09T22:02:49.290946+00:00,,,Ethernet2,R1
+2001:db8:1:11::2/64,Global,Active,,,1134,,S1 side of R1-S1 IPv6 transit,489,,,,,,,2026-09-09T22:02:49.336730+00:00,2026-09-09T22:02:49.336743+00:00,,,Ethernet1,S1
+2001:db8:1:33::1/64,Global,Active,,,1116,,R1 side of R1-S3 IPv6 transit,494,,,,,,,2026-09-09T22:02:49.504722+00:00,2026-09-09T22:02:49.504734+00:00,,,Ethernet1,R1
+2001:db8:1:33::2/64,Global,Active,,,1151,,S3 side of R1-S3 IPv6 transit,495,,,,,,,2026-09-09T22:02:49.562269+00:00,2026-09-09T22:02:49.562281+00:00,,,Ethernet3,S3
+2001:db8:2:22::1/64,Global,Active,,,1120,,R2 side of S2-R2 IPv6 transit,492,,,,,,,2026-09-09T22:02:49.430270+00:00,2026-09-09T22:02:49.430282+00:00,,,Ethernet2,R2
+2001:db8:2:22::2/64,Global,Active,,,1143,,S2 side of S2-R2 IPv6 transit,493,,,,,,,2026-09-09T22:02:49.454467+00:00,2026-09-09T22:02:49.454478+00:00,,,Ethernet1,S2
+2001:db8:2:44::1/64,Global,Active,,,1119,,R2 side of R2-S4 IPv6 transit,496,,,,,,,2026-09-09T22:02:49.591577+00:00,2026-09-09T22:02:49.591589+00:00,,,Ethernet1,R2
+2001:db8:2:44::2/64,Global,Active,,,1155,,S4 side of R2-S4 IPv6 transit,497,,,,,,,2026-09-09T22:02:49.618791+00:00,2026-09-09T22:02:49.618803+00:00,,,Ethernet3,S4
+2001:db8:3:4::1/64,Global,Active,,,1124,,R3 side of R3-R4 IPv6 transit,504,,,,,,,2026-09-09T22:02:49.823227+00:00,2026-09-09T22:02:49.823239+00:00,,,Ethernet3,R3
+2001:db8:3:4::2/64,Global,Active,,,1128,,R4 side of R3-R4 IPv6 transit,505,,,,,,,2026-09-09T22:02:49.851805+00:00,2026-09-09T22:02:49.851816+00:00,,,Ethernet3,R4
+2001:db8:3:5::1/64,Global,Active,,,1122,,R3 side of R3-R5 eBGP IPv6 transit,506,,,,,,,2026-09-09T22:02:49.880237+00:00,2026-09-09T22:02:49.880248+00:00,,,Ethernet1,R3
+2001:db8:3:5::2/64,Global,Active,,,1131,,R5 side of R3-R5 eBGP IPv6 transit,507,,,,,,,2026-09-09T22:02:49.904878+00:00,2026-09-09T22:02:49.904889+00:00,,,Ethernet2,R5
+2001:db8:3:33::1/64,Global,Active,,,1123,,R3 side of R3-S3 IPv6 transit,498,,,,,,,2026-09-09T22:02:49.650429+00:00,2026-09-09T22:02:49.650440+00:00,,,Ethernet2,R3
+2001:db8:3:33::2/64,Global,Active,,,1149,,S3 side of R3-S3 IPv6 transit,499,,,,,,,2026-09-09T22:02:49.675530+00:00,2026-09-09T22:02:49.675540+00:00,,,Ethernet1,S3
+2001:db8:4:5::1/64,Global,Active,,,1126,,R4 side of R4-R5 eBGP IPv6 transit,508,,,,,,,2026-09-09T22:02:49.945378+00:00,2026-09-09T22:02:49.945390+00:00,,,Ethernet1,R4
+2001:db8:4:5::2/64,Global,Active,,,1132,,R5 side of R4-R5 eBGP IPv6 transit,509,,,,,,,2026-09-09T22:02:49.970463+00:00,2026-09-09T22:02:49.970474+00:00,,,Ethernet3,R5
+2001:db8:4:44::1/64,Global,Active,,,1127,,R4 side of R4-S4 IPv6 transit,500,,,,,,,2026-09-09T22:02:49.702466+00:00,2026-09-09T22:02:49.702477+00:00,,,Ethernet2,R4
+2001:db8:4:44::2/64,Global,Active,,,1153,,S4 side of R4-S4 IPv6 transit,501,,,,,,,2026-09-09T22:02:49.730158+00:00,2026-09-09T22:02:49.730169+00:00,,,Ethernet1,S4
+2001:db8:10::1/64,Global,Active,,,1138,,S1 VLAN10 IPv6 gateway,460,,,,,,,2026-09-09T21:09:52.775962+00:00,2026-09-09T21:36:03.196334+00:00,,,Vlan10,S1
+2001:db8:12:12::1/64,Global,Active,,,1141,,S1 side of S1-S2 VLAN900 IPv6 transit,490,,,,,,,2026-09-09T22:02:49.379145+00:00,2026-09-09T22:02:49.379157+00:00,,,Vlan900,S1
+2001:db8:12:12::2/64,Global,Active,,,1147,,S2 side of S1-S2 VLAN900 IPv6 transit,491,,,,,,,2026-09-09T22:02:49.404000+00:00,2026-09-09T22:02:49.404012+00:00,,,Vlan900,S2
+2001:db8:20::1/64,Global,Active,,,1139,,S1 VLAN20 IPv6 gateway,462,,,,,,,2026-09-09T21:09:52.825817+00:00,2026-09-09T21:36:03.222406+00:00,,,Vlan20,S1
+2001:db8:30::1/64,Global,Active,,,1140,,S1 VLAN30 IPv6 gateway,463,,,,,,,2026-09-09T21:09:52.850478+00:00,2026-09-09T21:36:03.249078+00:00,,,Vlan30,S1
+2001:db8:33:44::1/64,Global,Active,,,1150,,S3 side of S3-S4 IPv6 transit,502,,,,,,,2026-09-09T22:02:49.772747+00:00,2026-09-09T22:02:49.772758+00:00,,,Ethernet2,S3
+2001:db8:33:44::2/64,Global,Active,,,1154,,S4 side of S3-S4 IPv6 transit,503,,,,,,,2026-09-09T22:02:49.798457+00:00,2026-09-09T22:02:49.798468+00:00,,,Ethernet2,S4
+2001:db8:203:113::1/64,Global,Active,,,1130,,R5 side of R5-Webserver IPv6 network,510,,,,,,,2026-09-09T22:02:49.998902+00:00,2026-09-09T22:02:49.998913+00:00,,,Ethernet1,R5
+2001:db8:203:113::2/64,Global,Active,,,,,Web server IPv6 address (unassigned until web-server VM/device exists),511,,,,,,,2026-09-09T22:02:50.023215+00:00,2026-09-09T22:02:50.023227+00:00,,,,
+3fff:172:20:20::2/64,Global,Active,,,1129,,R5 Containerlab OOB management IPv6,529,,,,,,,2026-09-09T22:03:54.727048+00:00,2026-09-09T22:03:54.727059+00:00,,,Management0,R5
+3fff:172:20:20::3/64,Global,Active,,,,,H2 Containerlab OOB management IPv6,515,,,,,,,2026-09-09T22:03:54.392393+00:00,2026-09-09T22:03:54.392406+00:00,,,,
+3fff:172:20:20::4/64,Global,Active,,,1148,,S3 Containerlab OOB management IPv6,535,,,,,,,2026-09-09T22:03:54.889759+00:00,2026-09-09T22:03:54.889769+00:00,,,Management0,S3
+3fff:172:20:20::5/64,Global,Active,,,,,web-server Containerlab OOB management IPv6,539,,,,,,,2026-09-09T22:03:55.004744+00:00,2026-09-09T22:03:55.004755+00:00,,,,
+3fff:172:20:20::6/64,Global,Active,,,,,H4 Containerlab OOB management IPv6,519,,,,,,,2026-09-09T22:03:54.484550+00:00,2026-09-09T22:03:54.484561+00:00,,,,
+3fff:172:20:20::7/64,Global,Active,,,1133,,S1 Containerlab OOB management IPv6,531,,,,,,,2026-09-09T22:03:54.780147+00:00,2026-09-09T22:03:54.780157+00:00,,,Management0,S1
+3fff:172:20:20::8/64,Global,Active,,,1142,,S2 Containerlab OOB management IPv6,533,,,,,,,2026-09-09T22:03:54.838851+00:00,2026-09-09T22:03:54.838861+00:00,,,Management0,S2
+3fff:172:20:20::9/64,Global,Active,,,1121,,R3 Containerlab OOB management IPv6,525,,,,,,,2026-09-09T22:03:54.629530+00:00,2026-09-09T22:03:54.629540+00:00,,,Management0,R3
+3fff:172:20:20::a/64,Global,Active,,,1152,,S4 Containerlab OOB management IPv6,537,,,,,,,2026-09-09T22:03:54.954342+00:00,2026-09-09T22:03:54.954353+00:00,,,Management0,S4
+3fff:172:20:20::b/64,Global,Active,,,1125,,R4 Containerlab OOB management IPv6,527,,,,,,,2026-09-09T22:03:54.679177+00:00,2026-09-09T22:03:54.679188+00:00,,,Management0,R4
+3fff:172:20:20::c/64,Global,Active,,,,,H1 Containerlab OOB management IPv6,513,,,,,,,2026-09-09T22:03:54.334575+00:00,2026-09-09T22:03:54.334588+00:00,,,,
+3fff:172:20:20::d/64,Global,Active,,,1115,,R1 Containerlab OOB management IPv6,521,,,,,,,2026-09-09T22:03:54.533476+00:00,2026-09-09T22:03:54.533486+00:00,,,Management0,R1
+3fff:172:20:20::e/64,Global,Active,,,1118,,R2 Containerlab OOB management IPv6,523,,,,,,,2026-09-09T22:03:54.581180+00:00,2026-09-09T22:03:54.581190+00:00,,,Management0,R2
+3fff:172:20:20::f/64,Global,Active,,,,,H3 Containerlab OOB management IPv6,517,,,,,,,2026-09-09T22:03:54.441782+00:00,2026-09-09T22:03:54.441794+00:00,,,,

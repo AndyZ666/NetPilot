@@ -1,0 +1,815 @@
+{
+  "name": "pilot-network",
+  "type": "clab",
+  "clab": {
+    "config": {
+      "prefix": "clab",
+      "mgmt": {
+        "network": "clab",
+        "bridge": "br-6875b7e4b9d2",
+        "ipv4-subnet": "172.20.20.0/24",
+        "ipv4-gw": "172.20.20.1",
+        "ipv6-subnet": "3fff:172:20:20::/64",
+        "ipv6-gw": "3fff:172:20:20::1",
+        "external-access": true
+      }
+    }
+  },
+  "ssh-pub-keys": [],
+  "nodes": {
+    "H1": {
+      "index": "0",
+      "shortname": "H1",
+      "longname": "clab-pilot-network-H1",
+      "fqdn": "H1.pilot-network.io",
+      "group": "",
+      "labdir": "/home/student/Documents/NetPilot/clab-pilot-network/H1",
+      "kind": "linux",
+      "image": "wbitt/network-multitool:latest",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "172.20.20.12",
+      "mgmt-ipv4-prefix-length": 24,
+      "mgmt-ipv6-address": "3fff:172:20:20::c",
+      "mgmt-ipv6-prefix-length": 64,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-6875b7e4b9d2",
+        "clab-node-group": "",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/student/Documents/NetPilot/clab-pilot-network/H1",
+        "clab-node-longname": "clab-pilot-network-H1",
+        "clab-node-name": "H1",
+        "clab-node-type": "",
+        "clab-owner": "student",
+        "clab-topo-file": "/home/student/Documents/NetPilot/nettopo.clab.yml",
+        "containerlab": "pilot-network"
+      },
+      "port-bindings": [
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 11443,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 1180,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 443,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 80,
+          "protocol": "tcp"
+        }
+      ]
+    },
+    "H2": {
+      "index": "1",
+      "shortname": "H2",
+      "longname": "clab-pilot-network-H2",
+      "fqdn": "H2.pilot-network.io",
+      "group": "",
+      "labdir": "/home/student/Documents/NetPilot/clab-pilot-network/H2",
+      "kind": "linux",
+      "image": "wbitt/network-multitool:latest",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "172.20.20.3",
+      "mgmt-ipv4-prefix-length": 24,
+      "mgmt-ipv6-address": "3fff:172:20:20::3",
+      "mgmt-ipv6-prefix-length": 64,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-6875b7e4b9d2",
+        "clab-node-group": "",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/student/Documents/NetPilot/clab-pilot-network/H2",
+        "clab-node-longname": "clab-pilot-network-H2",
+        "clab-node-name": "H2",
+        "clab-node-type": "",
+        "clab-owner": "student",
+        "clab-topo-file": "/home/student/Documents/NetPilot/nettopo.clab.yml",
+        "containerlab": "pilot-network"
+      },
+      "port-bindings": [
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 80,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 11443,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 1180,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 443,
+          "protocol": "tcp"
+        }
+      ]
+    },
+    "H3": {
+      "index": "2",
+      "shortname": "H3",
+      "longname": "clab-pilot-network-H3",
+      "fqdn": "H3.pilot-network.io",
+      "group": "",
+      "labdir": "/home/student/Documents/NetPilot/clab-pilot-network/H3",
+      "kind": "linux",
+      "image": "wbitt/network-multitool:latest",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "172.20.20.15",
+      "mgmt-ipv4-prefix-length": 24,
+      "mgmt-ipv6-address": "3fff:172:20:20::f",
+      "mgmt-ipv6-prefix-length": 64,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-6875b7e4b9d2",
+        "clab-node-group": "",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/student/Documents/NetPilot/clab-pilot-network/H3",
+        "clab-node-longname": "clab-pilot-network-H3",
+        "clab-node-name": "H3",
+        "clab-node-type": "",
+        "clab-owner": "student",
+        "clab-topo-file": "/home/student/Documents/NetPilot/nettopo.clab.yml",
+        "containerlab": "pilot-network"
+      },
+      "port-bindings": [
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 443,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 80,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 11443,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 1180,
+          "protocol": "tcp"
+        }
+      ]
+    },
+    "H4": {
+      "index": "3",
+      "shortname": "H4",
+      "longname": "clab-pilot-network-H4",
+      "fqdn": "H4.pilot-network.io",
+      "group": "",
+      "labdir": "/home/student/Documents/NetPilot/clab-pilot-network/H4",
+      "kind": "linux",
+      "image": "wbitt/network-multitool:latest",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "172.20.20.6",
+      "mgmt-ipv4-prefix-length": 24,
+      "mgmt-ipv6-address": "3fff:172:20:20::6",
+      "mgmt-ipv6-prefix-length": 64,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-6875b7e4b9d2",
+        "clab-node-group": "",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/student/Documents/NetPilot/clab-pilot-network/H4",
+        "clab-node-longname": "clab-pilot-network-H4",
+        "clab-node-name": "H4",
+        "clab-node-type": "",
+        "clab-owner": "student",
+        "clab-topo-file": "/home/student/Documents/NetPilot/nettopo.clab.yml",
+        "containerlab": "pilot-network"
+      },
+      "port-bindings": [
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 11443,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 1180,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 443,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 80,
+          "protocol": "tcp"
+        }
+      ]
+    },
+    "R1": {
+      "index": "4",
+      "shortname": "R1",
+      "longname": "clab-pilot-network-R1",
+      "fqdn": "R1.pilot-network.io",
+      "group": "",
+      "labdir": "/home/student/Documents/NetPilot/clab-pilot-network/R1",
+      "kind": "ceos",
+      "image": "ceos:4.36.2F",
+      "mgmt-net": "",
+      "mgmt-intf": "Management0",
+      "mgmt-ipv4-address": "172.20.20.13",
+      "mgmt-ipv4-prefix-length": 24,
+      "mgmt-ipv6-address": "3fff:172:20:20::d",
+      "mgmt-ipv6-prefix-length": 64,
+      "mac-address": "00:1c:73:c0:80:61",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-6875b7e4b9d2",
+        "clab-node-group": "",
+        "clab-node-kind": "ceos",
+        "clab-node-lab-dir": "/home/student/Documents/NetPilot/clab-pilot-network/R1",
+        "clab-node-longname": "clab-pilot-network-R1",
+        "clab-node-name": "R1",
+        "clab-node-type": "",
+        "clab-owner": "student",
+        "clab-topo-file": "/home/student/Documents/NetPilot/nettopo.clab.yml",
+        "containerlab": "pilot-network"
+      },
+      "port-bindings": [
+      ]
+    },
+    "R2": {
+      "index": "5",
+      "shortname": "R2",
+      "longname": "clab-pilot-network-R2",
+      "fqdn": "R2.pilot-network.io",
+      "group": "",
+      "labdir": "/home/student/Documents/NetPilot/clab-pilot-network/R2",
+      "kind": "ceos",
+      "image": "ceos:4.36.2F",
+      "mgmt-net": "",
+      "mgmt-intf": "Management0",
+      "mgmt-ipv4-address": "172.20.20.14",
+      "mgmt-ipv4-prefix-length": 24,
+      "mgmt-ipv6-address": "3fff:172:20:20::e",
+      "mgmt-ipv6-prefix-length": 64,
+      "mac-address": "00:1c:73:12:ce:6c",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-6875b7e4b9d2",
+        "clab-node-group": "",
+        "clab-node-kind": "ceos",
+        "clab-node-lab-dir": "/home/student/Documents/NetPilot/clab-pilot-network/R2",
+        "clab-node-longname": "clab-pilot-network-R2",
+        "clab-node-name": "R2",
+        "clab-node-type": "",
+        "clab-owner": "student",
+        "clab-topo-file": "/home/student/Documents/NetPilot/nettopo.clab.yml",
+        "containerlab": "pilot-network"
+      },
+      "port-bindings": [
+      ]
+    },
+    "R3": {
+      "index": "6",
+      "shortname": "R3",
+      "longname": "clab-pilot-network-R3",
+      "fqdn": "R3.pilot-network.io",
+      "group": "",
+      "labdir": "/home/student/Documents/NetPilot/clab-pilot-network/R3",
+      "kind": "ceos",
+      "image": "ceos:4.36.2F",
+      "mgmt-net": "",
+      "mgmt-intf": "Management0",
+      "mgmt-ipv4-address": "172.20.20.9",
+      "mgmt-ipv4-prefix-length": 24,
+      "mgmt-ipv6-address": "3fff:172:20:20::9",
+      "mgmt-ipv6-prefix-length": 64,
+      "mac-address": "00:1c:73:50:65:9f",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-6875b7e4b9d2",
+        "clab-node-group": "",
+        "clab-node-kind": "ceos",
+        "clab-node-lab-dir": "/home/student/Documents/NetPilot/clab-pilot-network/R3",
+        "clab-node-longname": "clab-pilot-network-R3",
+        "clab-node-name": "R3",
+        "clab-node-type": "",
+        "clab-owner": "student",
+        "clab-topo-file": "/home/student/Documents/NetPilot/nettopo.clab.yml",
+        "containerlab": "pilot-network"
+      },
+      "port-bindings": [
+      ]
+    },
+    "R4": {
+      "index": "7",
+      "shortname": "R4",
+      "longname": "clab-pilot-network-R4",
+      "fqdn": "R4.pilot-network.io",
+      "group": "",
+      "labdir": "/home/student/Documents/NetPilot/clab-pilot-network/R4",
+      "kind": "ceos",
+      "image": "ceos:4.36.2F",
+      "mgmt-net": "",
+      "mgmt-intf": "Management0",
+      "mgmt-ipv4-address": "172.20.20.11",
+      "mgmt-ipv4-prefix-length": 24,
+      "mgmt-ipv6-address": "3fff:172:20:20::b",
+      "mgmt-ipv6-prefix-length": 64,
+      "mac-address": "00:1c:73:47:c2:41",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-6875b7e4b9d2",
+        "clab-node-group": "",
+        "clab-node-kind": "ceos",
+        "clab-node-lab-dir": "/home/student/Documents/NetPilot/clab-pilot-network/R4",
+        "clab-node-longname": "clab-pilot-network-R4",
+        "clab-node-name": "R4",
+        "clab-node-type": "",
+        "clab-owner": "student",
+        "clab-topo-file": "/home/student/Documents/NetPilot/nettopo.clab.yml",
+        "containerlab": "pilot-network"
+      },
+      "port-bindings": [
+      ]
+    },
+    "R5": {
+      "index": "8",
+      "shortname": "R5",
+      "longname": "clab-pilot-network-R5",
+      "fqdn": "R5.pilot-network.io",
+      "group": "",
+      "labdir": "/home/student/Documents/NetPilot/clab-pilot-network/R5",
+      "kind": "ceos",
+      "image": "ceos:4.36.2F",
+      "mgmt-net": "",
+      "mgmt-intf": "Management0",
+      "mgmt-ipv4-address": "172.20.20.2",
+      "mgmt-ipv4-prefix-length": 24,
+      "mgmt-ipv6-address": "3fff:172:20:20::2",
+      "mgmt-ipv6-prefix-length": 64,
+      "mac-address": "00:1c:73:2c:6f:ea",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-6875b7e4b9d2",
+        "clab-node-group": "",
+        "clab-node-kind": "ceos",
+        "clab-node-lab-dir": "/home/student/Documents/NetPilot/clab-pilot-network/R5",
+        "clab-node-longname": "clab-pilot-network-R5",
+        "clab-node-name": "R5",
+        "clab-node-type": "",
+        "clab-owner": "student",
+        "clab-topo-file": "/home/student/Documents/NetPilot/nettopo.clab.yml",
+        "containerlab": "pilot-network"
+      },
+      "port-bindings": [
+      ]
+    },
+    "S1": {
+      "index": "9",
+      "shortname": "S1",
+      "longname": "clab-pilot-network-S1",
+      "fqdn": "S1.pilot-network.io",
+      "group": "",
+      "labdir": "/home/student/Documents/NetPilot/clab-pilot-network/S1",
+      "kind": "ceos",
+      "image": "ceos:4.36.2F",
+      "mgmt-net": "",
+      "mgmt-intf": "Management0",
+      "mgmt-ipv4-address": "172.20.20.7",
+      "mgmt-ipv4-prefix-length": 24,
+      "mgmt-ipv6-address": "3fff:172:20:20::7",
+      "mgmt-ipv6-prefix-length": 64,
+      "mac-address": "00:1c:73:52:e5:92",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-6875b7e4b9d2",
+        "clab-node-group": "",
+        "clab-node-kind": "ceos",
+        "clab-node-lab-dir": "/home/student/Documents/NetPilot/clab-pilot-network/S1",
+        "clab-node-longname": "clab-pilot-network-S1",
+        "clab-node-name": "S1",
+        "clab-node-type": "",
+        "clab-owner": "student",
+        "clab-topo-file": "/home/student/Documents/NetPilot/nettopo.clab.yml",
+        "containerlab": "pilot-network"
+      },
+      "port-bindings": [
+      ]
+    },
+    "S2": {
+      "index": "10",
+      "shortname": "S2",
+      "longname": "clab-pilot-network-S2",
+      "fqdn": "S2.pilot-network.io",
+      "group": "",
+      "labdir": "/home/student/Documents/NetPilot/clab-pilot-network/S2",
+      "kind": "ceos",
+      "image": "ceos:4.36.2F",
+      "mgmt-net": "",
+      "mgmt-intf": "Management0",
+      "mgmt-ipv4-address": "172.20.20.8",
+      "mgmt-ipv4-prefix-length": 24,
+      "mgmt-ipv6-address": "3fff:172:20:20::8",
+      "mgmt-ipv6-prefix-length": 64,
+      "mac-address": "00:1c:73:e3:03:29",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-6875b7e4b9d2",
+        "clab-node-group": "",
+        "clab-node-kind": "ceos",
+        "clab-node-lab-dir": "/home/student/Documents/NetPilot/clab-pilot-network/S2",
+        "clab-node-longname": "clab-pilot-network-S2",
+        "clab-node-name": "S2",
+        "clab-node-type": "",
+        "clab-owner": "student",
+        "clab-topo-file": "/home/student/Documents/NetPilot/nettopo.clab.yml",
+        "containerlab": "pilot-network"
+      },
+      "port-bindings": [
+      ]
+    },
+    "S3": {
+      "index": "11",
+      "shortname": "S3",
+      "longname": "clab-pilot-network-S3",
+      "fqdn": "S3.pilot-network.io",
+      "group": "",
+      "labdir": "/home/student/Documents/NetPilot/clab-pilot-network/S3",
+      "kind": "ceos",
+      "image": "ceos:4.36.2F",
+      "mgmt-net": "",
+      "mgmt-intf": "Management0",
+      "mgmt-ipv4-address": "172.20.20.4",
+      "mgmt-ipv4-prefix-length": 24,
+      "mgmt-ipv6-address": "3fff:172:20:20::4",
+      "mgmt-ipv6-prefix-length": 64,
+      "mac-address": "00:1c:73:5d:e9:7e",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-6875b7e4b9d2",
+        "clab-node-group": "",
+        "clab-node-kind": "ceos",
+        "clab-node-lab-dir": "/home/student/Documents/NetPilot/clab-pilot-network/S3",
+        "clab-node-longname": "clab-pilot-network-S3",
+        "clab-node-name": "S3",
+        "clab-node-type": "",
+        "clab-owner": "student",
+        "clab-topo-file": "/home/student/Documents/NetPilot/nettopo.clab.yml",
+        "containerlab": "pilot-network"
+      },
+      "port-bindings": [
+      ]
+    },
+    "S4": {
+      "index": "12",
+      "shortname": "S4",
+      "longname": "clab-pilot-network-S4",
+      "fqdn": "S4.pilot-network.io",
+      "group": "",
+      "labdir": "/home/student/Documents/NetPilot/clab-pilot-network/S4",
+      "kind": "ceos",
+      "image": "ceos:4.36.2F",
+      "mgmt-net": "",
+      "mgmt-intf": "Management0",
+      "mgmt-ipv4-address": "172.20.20.10",
+      "mgmt-ipv4-prefix-length": 24,
+      "mgmt-ipv6-address": "3fff:172:20:20::a",
+      "mgmt-ipv6-prefix-length": 64,
+      "mac-address": "00:1c:73:26:8e:2a",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-6875b7e4b9d2",
+        "clab-node-group": "",
+        "clab-node-kind": "ceos",
+        "clab-node-lab-dir": "/home/student/Documents/NetPilot/clab-pilot-network/S4",
+        "clab-node-longname": "clab-pilot-network-S4",
+        "clab-node-name": "S4",
+        "clab-node-type": "",
+        "clab-owner": "student",
+        "clab-topo-file": "/home/student/Documents/NetPilot/nettopo.clab.yml",
+        "containerlab": "pilot-network"
+      },
+      "port-bindings": [
+      ]
+    },
+    "web-server": {
+      "index": "13",
+      "shortname": "web-server",
+      "longname": "clab-pilot-network-web-server",
+      "fqdn": "web-server.pilot-network.io",
+      "group": "",
+      "labdir": "/home/student/Documents/NetPilot/clab-pilot-network/web-server",
+      "kind": "linux",
+      "image": "nginx:alpine",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "172.20.20.5",
+      "mgmt-ipv4-prefix-length": 24,
+      "mgmt-ipv6-address": "3fff:172:20:20::5",
+      "mgmt-ipv6-prefix-length": 64,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-6875b7e4b9d2",
+        "clab-node-group": "",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/student/Documents/NetPilot/clab-pilot-network/web-server",
+        "clab-node-longname": "clab-pilot-network-web-server",
+        "clab-node-name": "web-server",
+        "clab-node-type": "",
+        "clab-owner": "student",
+        "clab-topo-file": "/home/student/Documents/NetPilot/nettopo.clab.yml",
+        "containerlab": "pilot-network"
+      },
+      "port-bindings": [
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 80,
+          "protocol": "tcp"
+        }
+      ]
+    }
+  },
+  "links": [
+    {
+      "endpoints": {
+        "a": {
+          "node": "web-server",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:af:d4:a3",
+          "peer": "z"
+        },
+        "z": {
+          "node": "R5",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:3d:8f:10",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "R5",
+          "interface": "eth2",
+          "mac": "aa:c1:ab:08:30:d6",
+          "peer": "z"
+        },
+        "z": {
+          "node": "R3",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:98:06:2d",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "R5",
+          "interface": "eth3",
+          "mac": "aa:c1:ab:21:ee:eb",
+          "peer": "z"
+        },
+        "z": {
+          "node": "R4",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:81:52:d3",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "R3",
+          "interface": "eth3",
+          "mac": "aa:c1:ab:69:9d:78",
+          "peer": "z"
+        },
+        "z": {
+          "node": "R4",
+          "interface": "eth3",
+          "mac": "aa:c1:ab:24:d0:91",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "R3",
+          "interface": "eth2",
+          "mac": "aa:c1:ab:94:c5:eb",
+          "peer": "z"
+        },
+        "z": {
+          "node": "S3",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:01:d4:cb",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "R4",
+          "interface": "eth2",
+          "mac": "aa:c1:ab:55:e4:98",
+          "peer": "z"
+        },
+        "z": {
+          "node": "S4",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:59:ce:34",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "S3",
+          "interface": "eth2",
+          "mac": "aa:c1:ab:c2:e6:c5",
+          "peer": "z"
+        },
+        "z": {
+          "node": "S4",
+          "interface": "eth2",
+          "mac": "aa:c1:ab:09:3e:7a",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "S3",
+          "interface": "eth3",
+          "mac": "aa:c1:ab:81:7e:a8",
+          "peer": "z"
+        },
+        "z": {
+          "node": "R1",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:d2:95:79",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "S4",
+          "interface": "eth3",
+          "mac": "aa:c1:ab:84:cc:67",
+          "peer": "z"
+        },
+        "z": {
+          "node": "R2",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:84:d5:cc",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "R1",
+          "interface": "eth2",
+          "mac": "aa:c1:ab:eb:56:01",
+          "peer": "z"
+        },
+        "z": {
+          "node": "S1",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:d7:f8:58",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "R2",
+          "interface": "eth2",
+          "mac": "aa:c1:ab:75:3b:1e",
+          "peer": "z"
+        },
+        "z": {
+          "node": "S2",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:2b:fa:7d",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "S1",
+          "interface": "eth2",
+          "mac": "aa:c1:ab:d8:cc:e8",
+          "peer": "z"
+        },
+        "z": {
+          "node": "S2",
+          "interface": "eth2",
+          "mac": "aa:c1:ab:6c:c9:59",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "S1",
+          "interface": "eth3",
+          "mac": "aa:c1:ab:81:01:87",
+          "peer": "z"
+        },
+        "z": {
+          "node": "H1",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:78:8b:c9",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "S1",
+          "interface": "eth4",
+          "mac": "aa:c1:ab:1c:69:97",
+          "peer": "z"
+        },
+        "z": {
+          "node": "H2",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:78:bf:fd",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "S2",
+          "interface": "eth3",
+          "mac": "aa:c1:ab:81:88:13",
+          "peer": "z"
+        },
+        "z": {
+          "node": "H3",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:5f:9a:f6",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "S2",
+          "interface": "eth4",
+          "mac": "aa:c1:ab:3b:00:d8",
+          "peer": "z"
+        },
+        "z": {
+          "node": "H4",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:93:02:00",
+          "peer": "a"
+        }
+      }
+    }
+  ]
+}

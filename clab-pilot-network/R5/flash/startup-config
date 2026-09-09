@@ -1,0 +1,75 @@
+! Startup-config last modified at Wed Sep  9 22:17:25 2026 by root
+! device: R5 (cEOSLab, EOS-4.36.2F-49692818.4362F (engineering build))
+!
+no aaa root
+!
+username admin privilege 15 role network-admin secret sha512 $6$JEs5NqYJZ7d8i.YP$rQ8a/b.YoR0A3lnpi8AkQTOnJl8ViJnQ4z521YMUc4l0J7YkGr5a5l4sPtS.XTX.i9QPaVvm8K8zgZ.2oxysN0
+!
+management api http-commands
+   no shutdown
+!
+no service interface inactive port-id allocation disabled
+!
+service routing protocols model multi-agent
+!
+hostname R5
+!
+spanning-tree mode mstp
+!
+system l1
+   unsupported speed action error
+   unsupported error-correction action error
+!
+management api gnmi
+   transport grpc default
+!
+management api netconf
+   transport ssh default
+!
+interface Ethernet1
+   description TO-web-server
+   no switchport
+   ip address 203.0.113.1/30
+   ipv6 address 2001:db8:203:113::1/64
+!
+interface Ethernet2
+   no switchport
+   ip address 10.3.5.2/30
+   ipv6 address 2001:db8:3:5::2/64
+!
+interface Ethernet3
+   description EBGP-to-R4-eth1
+   no switchport
+   ip address 10.4.5.2/30
+   ipv6 address 2001:db8:4:5::2/64
+!
+interface Management0
+   ip address 172.20.20.2/24
+   ipv6 address 3fff:172:20:20::2/64
+!
+ip routing
+!
+ipv6 unicast-routing
+!
+ip route 0.0.0.0/0 172.20.20.1
+!
+ipv6 route ::/0 3fff:172:20:20::1
+!
+router bgp 65000
+   router-id 5.5.5.5
+   neighbor 10.3.5.1 remote-as 65001
+   neighbor 10.4.5.1 remote-as 65001
+   neighbor 2001:db8:3:5::1 remote-as 65001
+   neighbor 2001:db8:4:5::1 remote-as 65001
+   !
+   address-family ipv4
+      neighbor 10.3.5.1 activate
+      neighbor 10.4.5.1 activate
+      network 203.0.113.0/30
+   !
+   address-family ipv6
+      neighbor 2001:db8:3:5::1 activate
+      neighbor 2001:db8:4:5::1 activate
+      network 2001:db8:203:113::/64
+!
+end

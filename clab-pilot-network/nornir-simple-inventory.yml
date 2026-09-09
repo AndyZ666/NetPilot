@@ -1,0 +1,71 @@
+---
+R1:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.13
+R2:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.14
+R3:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.9
+R4:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.11
+R5:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.2
+S1:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.7
+S2:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.8
+S3:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.4
+S4:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.10
+H1:
+    username: 
+    password: 
+    platform: linux
+    hostname: 172.20.20.12
+H2:
+    username: 
+    password: 
+    platform: linux
+    hostname: 172.20.20.3
+H3:
+    username: 
+    password: 
+    platform: linux
+    hostname: 172.20.20.15
+H4:
+    username: 
+    password: 
+    platform: linux
+    hostname: 172.20.20.6
+web-server:
+    username: 
+    password: 
+    platform: linux
+    hostname: 172.20.20.5

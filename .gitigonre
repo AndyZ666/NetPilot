@@ -1,0 +1,32 @@
+# Containerlab generated files
+clab-*/
+.clab-*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets
+.env
+*.key
+*.pem
+credentials.yml
+secrets.yml
+
+# Packet captures
+*.pcap
+*.pcapng
+
+# Logs
+*.log
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.swp
