@@ -1,0 +1,69 @@
+{
+  "oids": {
+    "sysDescr": {
+      "oid": "1.3.6.1.2.1.1.1.0",
+      "name": "System Description",
+      "category": "system",
+      "description": "A textual description of the entity"
+    },
+    "sysUpTime": {
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "name": "System Uptime",
+      "category": "system",
+      "description": "The time in hundredths of a second since boot"
+    },
+    "sysName": {
+      "oid": "1.3.6.1.2.1.1.5.0",
+      "name": "System Name",
+      "category": "system",
+      "description": "An administratively assigned name for this managed node"
+    },
+    "hrProcessorLoad": {
+      "oid": "1.3.6.1.2.1.25.3.3.1.2",
+      "name": "Processor Load",
+      "category": "cpu",
+      "description": "CPU load as a percentage (0-100)"
+    },
+    "ifDescr": {
+      "oid": "1.3.6.1.2.1.2.2.1.2",
+      "name": "Interface Description",
+      "category": "interface",
+      "description": "Interface name/description"
+    },
+    "ifAdminStatus": {
+      "oid": "1.3.6.1.2.1.2.2.1.7",
+      "name": "Interface Admin Status",
+      "category": "interface",
+      "description": "Desired operational status (1=up, 2=down, 3=testing)"
+    },
+    "ifOperStatus": {
+      "oid": "1.3.6.1.2.1.2.2.1.8",
+      "name": "Interface Operational Status",
+      "category": "interface",
+      "description": "Actual operational status (1=up, 2=down, 3=testing)"
+    },
+    "ifHCInOctets": {
+      "oid": "1.3.6.1.2.1.31.1.1.1.6",
+      "name": "Interface High-Capacity Input Octets",
+      "category": "traffic",
+      "description": "Number of octets received on interface (64-bit)"
+    },
+    "ifHCOutOctets": {
+      "oid": "1.3.6.1.2.1.31.1.1.1.10",
+      "name": "Interface High-Capacity Output Octets",
+      "category": "traffic",
+      "description": "Number of octets transmitted on interface (64-bit)"
+    }
+  },
+  "snmp_config": {
+    "version": "2c",
+    "community": "NetPilot",
+    "timeout": 3,
+    "retries": 1
+  },
+  "interface_status_map": {
+    "1": "UP",
+    "2": "DOWN",
+    "3": "TESTING"
+  }
+}

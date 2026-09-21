@@ -1,0 +1,76 @@
+{
+  "devices": [
+    {
+      "name": "R1",
+      "ip": "172.20.20.13",
+      "type": "router",
+      "role": "edge"
+    },
+    {
+      "name": "R2",
+      "ip": "172.20.20.14",
+      "type": "router",
+      "role": "core"
+    },
+    {
+      "name": "R3",
+      "ip": "172.20.20.9",
+      "type": "router",
+      "role": "edge"
+    },
+    {
+      "name": "R4",
+      "ip": "172.20.20.11",
+      "type": "router",
+      "role": "edge"
+    },
+    {
+      "name": "R5",
+      "ip": "172.20.20.2",
+      "type": "router",
+      "role": "edge"
+    },
+    {
+      "name": "S1",
+      "ip": "172.20.20.7",
+      "type": "switch",
+      "role": "distribution"
+    },
+    {
+      "name": "S2",
+      "ip": "172.20.20.8",
+      "type": "switch",
+      "role": "distribution"
+    },
+    {
+      "name": "S3",
+      "ip": "172.20.20.4",
+      "type": "switch",
+      "role": "distribution"
+    },
+    {
+      "name": "S4",
+      "ip": "172.20.20.10",
+      "type": "switch",
+      "role": "distribution"
+    },
+    {
+      "name": "H1",
+      "ip": "172.20.20.15",
+      "type": "host",
+      "role": "client"
+    },
+    {
+      "name": "H3",
+      "ip": "172.20.20.16",
+      "type": "host",
+      "role": "client"
+    },
+    {
+      "name": "web-server",
+      "ip": "172.20.20.5",
+      "type": "server",
+      "role": "service"
+    }
+  ]
+}

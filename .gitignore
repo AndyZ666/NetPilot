@@ -1,0 +1,52 @@
+# ==========================================
+# NetPilot Git Ignore
+# ==========================================
+
+# Python virtual environments
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Local credential/token files
+scriptes.txt
+
+# Secrets / credentials
+secrets/
+credentials/
+credentials.json
+*_secret*
+*_token*
+
+# Containerlab generated runtime data
+clab-pilot-network/
+.clab/
+clab-*/
+
+# Temporary query/export files
+query.csv
+
+# Logs
+*.log
+*.log.gz
+logs/
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
