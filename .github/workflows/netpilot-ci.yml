@@ -1,0 +1,75 @@
+name: NetPilot CI
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+jobs:
+
+  validate:
+    name: Validate NetPilot Files
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Validate Python syntax
+        run: |
+          echo "Checking Python files..."
+          python -m compileall -q .
+          echo "Python syntax validation passed."
+
+      - name: Validate YAML syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          files = list(Path(".").rglob("*.yml")) + list(Path(".").rglob("*.yaml"))
+
+          if not files:
+              print("No YAML files found.")
+
+          for file in files:
+              print(f"Checking {file}")
+              with open(file, "r", encoding="utf-8") as f:
+                  yaml.safe_load(f)
+
+          print(f"Validated {len(files)} YAML file(s).")
+          PY
+
+      - name: Validate JSON syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+
+          files = list(Path(".").rglob("*.json"))
+
+          if not files:
+              print("No JSON files found.")
+
+          for file in files:
+              print(f"Checking {file}")
+              with open(file, "r", encoding="utf-8") as f:
+                  json.load(f)
+
+          print(f"Validated {len(files)} JSON file(s).")
+          PY
