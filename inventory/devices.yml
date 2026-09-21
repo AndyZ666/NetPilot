@@ -1,0 +1,1726 @@
+metadata:
+  schema_version: 2
+  name: NetPilot NSOT
+  network_name: pilot-network
+  topology_file: nettopo.clab.yml
+  source_facts_generated_at_utc: '2026-09-21T21:29:31.305244+00:00'
+  source_collection_method: Read-only EOS show commands through docker exec Cli -p 15 -c
+  purpose: Normalized desired-state source of truth for NetPilot automation, templating, GUI, and golden-config workflows
+  notes:
+  - Dynamic operational state such as interface up/down, OSPF DR/BDR state, and live BGP prefix counters is not treated as
+    desired-state intent.
+  - Device roles are design labels inferred from topology and routing function.
+  - RIP is recorded as RIPv2 from the lab topology intent; the EOS collection did not explicitly expose the RIP version.
+  - Null-remote-AS BGP activation-only entries on R4 are excluded from intended neighbors and preserved under validation_notes.
+network:
+  management:
+    ipv4_subnet: 172.20.20.0/24
+    nmas_ipv4: 172.20.20.1
+  defaults:
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    template: templates/arista_ceos.j2
+  management_services:
+    ssh:
+      enabled: true
+      port: 22
+    netconf:
+      enabled: true
+      port: 830
+      source: previous_lab_verified_baseline
+    gnmi:
+      enabled: true
+      port: 6030
+      source: previous_lab_verified_baseline
+    snmp:
+      enabled: true
+      version: v2c
+      source: previous_lab_verified_baseline
+routing_domains:
+  ospfv2_core:
+    protocol: ospfv2
+    address_family: ipv4
+    process_id: 10
+    area: 0.0.0.0
+    members:
+    - R1
+    - R2
+    - R3
+    - R4
+    - S3
+    - S4
+  ospfv3_ipv6:
+    protocol: ospfv3
+    address_family: ipv6
+    process_id: 10
+    area: 0.0.0.0
+    members:
+    - R1
+    - R2
+    - R3
+    - R4
+    - S1
+    - S2
+    - S3
+    - S4
+  ripv2_access:
+    protocol: ripv2
+    address_family: ipv4
+    members:
+    - R1
+    - R2
+    - S1
+    - S2
+  bgp_edge:
+    protocol: bgp
+    address_families:
+    - ipv4
+    - ipv6
+    autonomous_systems:
+      65001:
+      - R3
+      - R4
+      65000:
+      - R5
+    sessions:
+    - local: R3
+      remote: R5
+      ipv4: 10.3.5.1<->10.3.5.2
+      ipv6: 2001:db8:3:5::1<->2001:db8:3:5::2
+    - local: R4
+      remote: R5
+      ipv4: 10.4.5.1<->10.4.5.2
+      ipv6: 2001:db8:4:5::1<->2001:db8:4:5::2
+devices:
+  R1:
+    hostname: R1
+    role: redistribution_router
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    management:
+      interface: Management0
+      ipv4: 172.20.20.13
+      ipv4_prefix: 172.20.20.13/24
+      ipv6: 3fff:172:20:20::d/64
+    template: templates/arista_ceos.j2
+    interfaces:
+      Ethernet1:
+        description: TO-S3-Eth3
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.1.33.1/30
+        ipv6:
+        - 2001:db8:1:33::1/64
+        peer:
+          device: S3
+          interface: Ethernet3
+      Ethernet2:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.1.11.1/30
+        ipv6:
+        - 2001:db8:1:11::1/64
+        peer:
+          device: S1
+          interface: Ethernet1
+      Management0:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 172.20.20.13/24
+        ipv6:
+        - 3fff:172:20:20::d/64
+        peer: null
+    routing:
+      ospfv2:
+        enabled: true
+        process_id: 10
+        router_id: 1.1.1.1
+        areas:
+        - 0.0.0.0
+        networks:
+        - prefix: 10.1.33.0/30
+          area: 0.0.0.0
+        interfaces:
+        - name: Ethernet1
+          area: 0.0.0.0
+          passive: false
+        passive_interfaces: []
+      ospfv3:
+        enabled: true
+        process_id: 10
+        router_id: 1.1.1.1
+        areas:
+        - 0.0.0.0
+        networks: []
+        interfaces:
+        - name: Ethernet1
+          area: 0.0.0.0
+          passive: false
+        - name: Ethernet2
+          area: 0.0.0.0
+          passive: false
+        passive_interfaces: []
+      ripv2:
+        enabled: true
+        version: 2
+        version_verification: lab_topology_intent; EOS collection did not expose an explicit RIP version
+        networks:
+        - 10.1.11.0/30
+        interfaces:
+        - Ethernet2
+      bgp:
+        enabled: false
+    redistribution:
+    - source_protocol: connected
+      destination_protocol: ospfv2
+      destination_process_id: 10
+      route_map: R1-connected-to-ospf
+      qualifiers: null
+      configuration_statement: redistribute connected route-map R1-connected-to-ospf
+    - source_protocol: rip
+      destination_protocol: ospfv2
+      destination_process_id: 10
+      route_map: RIP-TO-OSPF
+      qualifiers: null
+      configuration_statement: redistribute rip route-map RIP-TO-OSPF
+    - source_protocol: ospfv2
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: OSPF-TO-RIP
+      qualifiers: match internal
+      configuration_statement: redistribute ospf match internal route-map OSPF-TO-RIP
+    - source_protocol: ospfv2
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: OSPF-TO-RIP
+      qualifiers: match external
+      configuration_statement: redistribute ospf match external route-map OSPF-TO-RIP
+    - source_protocol: connected
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: RIP-CONNECTED-R1
+      qualifiers: null
+      configuration_statement: redistribute connected route-map RIP-CONNECTED-R1
+    policy:
+      prefix_lists:
+        ipv4:
+          CORE-OSPF-PREFIXES:
+          - sequence: 10
+            action: permit
+            prefix: 10.1.33.0/30
+            ge: null
+            le: null
+          - sequence: 20
+            action: permit
+            prefix: 10.2.44.0/30
+            ge: null
+            le: null
+          - sequence: 30
+            action: permit
+            prefix: 10.3.33.0/30
+            ge: null
+            le: null
+          - sequence: 40
+            action: permit
+            prefix: 10.4.44.0/30
+            ge: null
+            le: null
+          - sequence: 50
+            action: permit
+            prefix: 10.33.44.0/30
+            ge: null
+            le: null
+          - sequence: 60
+            action: permit
+            prefix: 10.3.4.0/30
+            ge: null
+            le: null
+          - sequence: 70
+            action: permit
+            prefix: 203.0.113.0/30
+            ge: null
+            le: null
+          LOWER-RIP-PREFIXES:
+          - sequence: 10
+            action: permit
+            prefix: 10.0.10.0/24
+            ge: null
+            le: null
+          - sequence: 20
+            action: permit
+            prefix: 10.0.20.0/24
+            ge: null
+            le: null
+          - sequence: 30
+            action: permit
+            prefix: 10.1.11.0/30
+            ge: null
+            le: null
+          - sequence: 40
+            action: permit
+            prefix: 10.12.12.0/30
+            ge: null
+            le: null
+          - sequence: 50
+            action: permit
+            prefix: 10.2.22.0/30
+            ge: null
+            le: null
+          RIP-CONNECTED-R1:
+          - sequence: 10
+            action: permit
+            prefix: 10.1.11.0/30
+            ge: null
+            le: null
+        ipv6: {}
+      route_maps:
+        OSPF-TO-RIP:
+        - sequence: 10
+          action: permit
+          match:
+          - ip address prefix-list CORE-OSPF-PREFIXES
+          set: []
+          other_statements: []
+        R1-connected-to-ospf:
+        - sequence: 10
+          action: permit
+          match:
+          - ip address prefix-list LOWER-RIP-PREFIXES
+          set: []
+          other_statements: []
+        RIP-CONNECTED-R1:
+        - sequence: 10
+          action: permit
+          match:
+          - ip address prefix-list RIP-CONNECTED-R1
+          set: []
+          other_statements: []
+        RIP-TO-OSPF:
+        - sequence: 10
+          action: permit
+          match:
+          - ip address prefix-list LOWER-RIP-PREFIXES
+          set: []
+          other_statements: []
+    vlans: {}
+  R2:
+    hostname: R2
+    role: redistribution_router
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    management:
+      interface: Management0
+      ipv4: 172.20.20.14
+      ipv4_prefix: 172.20.20.14/24
+      ipv6: 3fff:172:20:20::e/64
+    template: templates/arista_ceos.j2
+    interfaces:
+      Ethernet1:
+        description: to-S4-eth3
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.2.44.1/30
+        ipv6:
+        - 2001:db8:2:44::1/64
+        peer:
+          device: S4
+          interface: Ethernet3
+      Ethernet2:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.2.22.1/30
+        ipv6:
+        - 2001:db8:2:22::1/64
+        peer:
+          device: S2
+          interface: Ethernet1
+      Management0:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 172.20.20.14/24
+        ipv6:
+        - 3fff:172:20:20::e/64
+        peer: null
+    routing:
+      ospfv2:
+        enabled: true
+        process_id: 10
+        router_id: 2.2.2.2
+        areas:
+        - 0.0.0.0
+        networks:
+        - prefix: 10.2.44.0/30
+          area: 0.0.0.0
+        interfaces:
+        - name: Ethernet1
+          area: 0.0.0.0
+          passive: false
+        passive_interfaces: []
+      ospfv3:
+        enabled: true
+        process_id: 10
+        router_id: 2.2.2.2
+        areas:
+        - 0.0.0.0
+        networks: []
+        interfaces:
+        - name: Ethernet1
+          area: 0.0.0.0
+          passive: false
+        - name: Ethernet2
+          area: 0.0.0.0
+          passive: false
+        passive_interfaces: []
+      ripv2:
+        enabled: true
+        version: 2
+        version_verification: lab_topology_intent; EOS collection did not expose an explicit RIP version
+        networks:
+        - 10.2.22.0/30
+        interfaces:
+        - Ethernet2
+      bgp:
+        enabled: false
+    redistribution:
+    - source_protocol: connected
+      destination_protocol: ospfv2
+      destination_process_id: 10
+      route_map: R2-connected-to-ospf
+      qualifiers: null
+      configuration_statement: redistribute connected route-map R2-connected-to-ospf
+    - source_protocol: rip
+      destination_protocol: ospfv2
+      destination_process_id: 10
+      route_map: RIP-TO-OSPF
+      qualifiers: null
+      configuration_statement: redistribute rip route-map RIP-TO-OSPF
+    - source_protocol: ospfv2
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: OSPF-TO-RIP
+      qualifiers: match internal
+      configuration_statement: redistribute ospf match internal route-map OSPF-TO-RIP
+    - source_protocol: ospfv2
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: OSPF-TO-RIP
+      qualifiers: match external
+      configuration_statement: redistribute ospf match external route-map OSPF-TO-RIP
+    - source_protocol: connected
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: rip-connected-r2
+      qualifiers: null
+      configuration_statement: redistribute connected route-map rip-connected-r2
+    policy:
+      prefix_lists:
+        ipv4:
+          CORE-OSPF-PREFIXES:
+          - sequence: 10
+            action: permit
+            prefix: 10.1.33.0/30
+            ge: null
+            le: null
+          - sequence: 20
+            action: permit
+            prefix: 10.2.44.0/30
+            ge: null
+            le: null
+          - sequence: 30
+            action: permit
+            prefix: 10.3.33.0/30
+            ge: null
+            le: null
+          - sequence: 40
+            action: permit
+            prefix: 10.4.44.0/30
+            ge: null
+            le: null
+          - sequence: 50
+            action: permit
+            prefix: 10.33.44.0/30
+            ge: null
+            le: null
+          - sequence: 60
+            action: permit
+            prefix: 10.3.4.0/30
+            ge: null
+            le: null
+          - sequence: 70
+            action: permit
+            prefix: 203.0.113.0/30
+            ge: null
+            le: null
+          LOWER-RIP-PREFIXES:
+          - sequence: 10
+            action: permit
+            prefix: 10.0.10.0/24
+            ge: null
+            le: null
+          - sequence: 20
+            action: permit
+            prefix: 10.0.20.0/24
+            ge: null
+            le: null
+          - sequence: 30
+            action: permit
+            prefix: 10.1.11.0/30
+            ge: null
+            le: null
+          - sequence: 40
+            action: permit
+            prefix: 10.12.12.0/30
+            ge: null
+            le: null
+          - sequence: 50
+            action: permit
+            prefix: 10.2.22.0/30
+            ge: null
+            le: null
+          rip-connected-r2:
+          - sequence: 10
+            action: permit
+            prefix: 10.2.22.0/30
+            ge: null
+            le: null
+        ipv6: {}
+      route_maps:
+        OSPF-TO-RIP:
+        - sequence: 10
+          action: permit
+          match:
+          - ip address prefix-list CORE-OSPF-PREFIXES
+          set: []
+          other_statements: []
+        R2-connected-to-ospf:
+        - sequence: 10
+          action: permit
+          match:
+          - ip address prefix-list LOWER-RIP-PREFIXES
+          set: []
+          other_statements: []
+        RIP-TO-OSPF:
+        - sequence: 10
+          action: permit
+          match:
+          - ip address prefix-list LOWER-RIP-PREFIXES
+          set: []
+          other_statements: []
+        rip-connected-r2:
+        - sequence: 10
+          action: permit
+          match:
+          - ip address prefix-list rip-connected-r2
+          set: []
+          other_statements: []
+    vlans: {}
+  R3:
+    hostname: R3
+    role: border_router
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    management:
+      interface: Management0
+      ipv4: 172.20.20.9
+      ipv4_prefix: 172.20.20.9/24
+      ipv6: 3fff:172:20:20::9/64
+    template: templates/arista_ceos.j2
+    interfaces:
+      Ethernet1:
+        description: EBGP-to-R5-eth2
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.3.5.1/30
+        ipv6:
+        - 2001:db8:3:5::1/64
+        peer:
+          device: R5
+          interface: Ethernet2
+      Ethernet2:
+        description: to-s3-eth1
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.3.33.1/30
+        ipv6:
+        - 2001:db8:3:33::1/64
+        peer:
+          device: S3
+          interface: Ethernet1
+      Ethernet3:
+        description: to-R4-eth3
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.3.4.1/30
+        ipv6:
+        - 2001:db8:3:4::1/64
+        peer:
+          device: R4
+          interface: Ethernet3
+      Management0:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 172.20.20.9/24
+        ipv6:
+        - 3fff:172:20:20::9/64
+        peer: null
+    routing:
+      ospfv2:
+        enabled: true
+        process_id: 10
+        router_id: 3.3.3.3
+        areas:
+        - 0.0.0.0
+        networks:
+        - prefix: 10.3.4.0/30
+          area: 0.0.0.0
+        - prefix: 10.3.33.0/30
+          area: 0.0.0.0
+        interfaces:
+        - name: Ethernet2
+          area: 0.0.0.0
+          passive: false
+        - name: Ethernet3
+          area: 0.0.0.0
+          passive: false
+        passive_interfaces: []
+      ospfv3:
+        enabled: true
+        process_id: 10
+        router_id: 3.3.3.3
+        areas:
+        - 0.0.0.0
+        networks: []
+        interfaces:
+        - name: Ethernet2
+          area: 0.0.0.0
+          passive: false
+        - name: Ethernet3
+          area: 0.0.0.0
+          passive: false
+        passive_interfaces: []
+      ripv2:
+        enabled: false
+      bgp:
+        enabled: true
+        local_asn: 65001
+        router_id: 3.3.3.3
+        neighbors:
+        - address: 10.3.5.2
+          transport_address_family: ipv4
+          remote_asn: 65000
+          address_families:
+            ipv4:
+              configured_activation: true
+            ipv6:
+              configured_activation: null
+        - address: 2001:db8:3:5::2
+          transport_address_family: ipv6
+          remote_asn: 65000
+          address_families:
+            ipv4:
+              configured_activation: null
+            ipv6:
+              configured_activation: true
+        networks:
+          ipv4:
+          - prefix: 10.0.10.0/24
+            route_map: null
+          - prefix: 10.0.20.0/24
+            route_map: null
+          - prefix: 10.1.11.0/30
+            route_map: null
+          - prefix: 10.1.33.0/30
+            route_map: null
+          - prefix: 10.2.22.0/30
+            route_map: null
+          - prefix: 10.2.44.0/30
+            route_map: null
+          - prefix: 10.3.4.0/30
+            route_map: null
+          - prefix: 10.3.33.0/30
+            route_map: null
+          - prefix: 10.4.44.0/30
+            route_map: null
+          - prefix: 10.12.12.0/30
+            route_map: null
+          - prefix: 10.33.44.0/30
+            route_map: null
+          ipv6:
+          - prefix: 2001:db8:1:11::/64
+            route_map: null
+          - prefix: 2001:db8:1:33::/64
+            route_map: null
+          - prefix: 2001:db8:2:22::/64
+            route_map: null
+          - prefix: 2001:db8:2:44::/64
+            route_map: null
+          - prefix: 2001:db8:3:4::/64
+            route_map: null
+          - prefix: 2001:db8:3:33::/64
+            route_map: null
+          - prefix: 2001:db8:4:44::/64
+            route_map: null
+          - prefix: 2001:db8:10::/64
+            route_map: null
+          - prefix: 2001:db8:12:12::/64
+            route_map: null
+          - prefix: 2001:db8:20::/64
+            route_map: null
+          - prefix: 2001:db8:30::/64
+            route_map: null
+          - prefix: 2001:db8:33:44::/64
+            route_map: null
+    redistribution:
+    - source_protocol: bgp
+      destination_protocol: ospfv2
+      destination_process_id: 10
+      route_map: BGP-TO-OSPF-WEB
+      qualifiers: null
+      configuration_statement: redistribute bgp route-map BGP-TO-OSPF-WEB
+    - source_protocol: bgp
+      destination_protocol: ospfv3
+      destination_process_id: 10
+      route_map: BGP-TO-OSPFv3-WEB
+      qualifiers: null
+      configuration_statement: redistribute bgp route-map BGP-TO-OSPFv3-WEB
+    policy:
+      prefix_lists:
+        ipv4:
+          BGP-WEB-V4:
+          - sequence: 10
+            action: permit
+            prefix: 203.0.113.0/30
+            ge: null
+            le: null
+        ipv6:
+          BGP-WEB-V6:
+          - sequence: 10
+            action: permit
+            prefix: 2001:db8:203:113::/64
+            ge: null
+            le: null
+      route_maps:
+        BGP-TO-OSPF-WEB:
+        - sequence: 10
+          action: permit
+          match:
+          - ip address prefix-list BGP-WEB-V4
+          set: []
+          other_statements: []
+        BGP-TO-OSPFv3-WEB:
+        - sequence: 10
+          action: permit
+          match:
+          - ipv6 address prefix-list BGP-WEB-V6
+          set: []
+          other_statements: []
+    vlans: {}
+  R4:
+    hostname: R4
+    role: border_router
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    management:
+      interface: Management0
+      ipv4: 172.20.20.11
+      ipv4_prefix: 172.20.20.11/24
+      ipv6: 3fff:172:20:20::b/64
+    template: templates/arista_ceos.j2
+    interfaces:
+      Ethernet1:
+        description: EBGP-to-R5-eth3
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.4.5.1/30
+        ipv6:
+        - 2001:db8:4:5::1/64
+        peer:
+          device: R5
+          interface: Ethernet3
+      Ethernet2:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.4.44.1/30
+        ipv6:
+        - 2001:db8:4:44::1/64
+        peer:
+          device: S4
+          interface: Ethernet1
+      Ethernet3:
+        description: to-R3-eth3
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.3.4.2/30
+        ipv6:
+        - 2001:db8:3:4::2/64
+        peer:
+          device: R3
+          interface: Ethernet3
+      Management0:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 172.20.20.11/24
+        ipv6:
+        - 3fff:172:20:20::b/64
+        peer: null
+    routing:
+      ospfv2:
+        enabled: true
+        process_id: 10
+        router_id: 4.4.4.4
+        areas:
+        - 0.0.0.0
+        networks:
+        - prefix: 10.3.4.0/30
+          area: 0.0.0.0
+        - prefix: 10.4.44.0/30
+          area: 0.0.0.0
+        interfaces:
+        - name: Ethernet2
+          area: 0.0.0.0
+          passive: false
+        - name: Ethernet3
+          area: 0.0.0.0
+          passive: false
+        passive_interfaces: []
+      ospfv3:
+        enabled: true
+        process_id: 10
+        router_id: 4.4.4.4
+        areas:
+        - 0.0.0.0
+        networks: []
+        interfaces:
+        - name: Ethernet2
+          area: 0.0.0.0
+          passive: false
+        - name: Ethernet3
+          area: 0.0.0.0
+          passive: false
+        passive_interfaces: []
+      ripv2:
+        enabled: false
+      bgp:
+        enabled: true
+        local_asn: 65001
+        router_id: 4.4.4.4
+        neighbors:
+        - address: 10.4.5.2
+          transport_address_family: ipv4
+          remote_asn: 65000
+          address_families:
+            ipv4:
+              configured_activation: null
+            ipv6:
+              configured_activation: null
+        - address: 2001:db8:4:5::2
+          transport_address_family: ipv6
+          remote_asn: 65000
+          address_families:
+            ipv4:
+              configured_activation: null
+            ipv6:
+              configured_activation: null
+        networks:
+          ipv4:
+          - prefix: 10.0.10.0/24
+            route_map: null
+          - prefix: 10.0.20.0/24
+            route_map: null
+          - prefix: 10.1.11.0/30
+            route_map: null
+          - prefix: 10.1.33.0/30
+            route_map: null
+          - prefix: 10.2.22.0/30
+            route_map: null
+          - prefix: 10.2.44.0/30
+            route_map: null
+          - prefix: 10.3.4.0/30
+            route_map: null
+          - prefix: 10.3.33.0/30
+            route_map: null
+          - prefix: 10.4.44.0/30
+            route_map: null
+          - prefix: 10.12.12.0/30
+            route_map: null
+          - prefix: 10.33.44.0/30
+            route_map: null
+          ipv6:
+          - prefix: 2001:db8:1:11::/64
+            route_map: null
+          - prefix: 2001:db8:1:33::/64
+            route_map: null
+          - prefix: 2001:db8:2:22::/64
+            route_map: null
+          - prefix: 2001:db8:2:44::/64
+            route_map: null
+          - prefix: 2001:db8:3:4::/64
+            route_map: null
+          - prefix: 2001:db8:3:33::/64
+            route_map: null
+          - prefix: 2001:db8:4:44::/64
+            route_map: null
+          - prefix: 2001:db8:10::/64
+            route_map: null
+          - prefix: 2001:db8:12:12::/64
+            route_map: null
+          - prefix: 2001:db8:20::/64
+            route_map: null
+          - prefix: 2001:db8:30::/64
+            route_map: null
+          - prefix: 2001:db8:33:44::/64
+            route_map: null
+    redistribution:
+    - source_protocol: bgp
+      destination_protocol: ospfv2
+      destination_process_id: 10
+      route_map: BGP-TO-OSPF-WEB
+      qualifiers: null
+      configuration_statement: redistribute bgp route-map BGP-TO-OSPF-WEB
+    - source_protocol: bgp
+      destination_protocol: ospfv3
+      destination_process_id: 10
+      route_map: BGP-TO-OSPFV3-WEB
+      qualifiers: null
+      configuration_statement: redistribute bgp route-map BGP-TO-OSPFV3-WEB
+    policy:
+      prefix_lists:
+        ipv4:
+          BGP-WEB-V4:
+          - sequence: 10
+            action: permit
+            prefix: 203.0.113.0/30
+            ge: null
+            le: null
+        ipv6:
+          BGP-WEB-V6:
+          - sequence: 10
+            action: permit
+            prefix: 2001:db8:203:113::/64
+            ge: null
+            le: null
+      route_maps:
+        BGP-TO-OSPF-WEB:
+        - sequence: 10
+          action: permit
+          match:
+          - ip address prefix-list BGP-WEB-V4
+          set: []
+          other_statements: []
+        BGP-TO-OSPFV3-WEB:
+        - sequence: 10
+          action: permit
+          match:
+          - ipv6 address prefix-list BGP-WEB-V6
+          set: []
+          other_statements: []
+    vlans: {}
+  R5:
+    hostname: R5
+    role: edge_router
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    management:
+      interface: Management0
+      ipv4: 172.20.20.2
+      ipv4_prefix: 172.20.20.2/24
+      ipv6: 3fff:172:20:20::2/64
+    template: templates/arista_ceos.j2
+    interfaces:
+      Ethernet1:
+        description: TO-web-server
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 203.0.113.1/30
+        ipv6:
+        - 2001:db8:203:113::1/64
+        peer:
+          device: web-server
+          interface: eth1
+      Ethernet2:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.3.5.2/30
+        ipv6:
+        - 2001:db8:3:5::2/64
+        peer:
+          device: R3
+          interface: Ethernet1
+      Ethernet3:
+        description: EBGP-to-R4-eth1
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.4.5.2/30
+        ipv6:
+        - 2001:db8:4:5::2/64
+        peer:
+          device: R4
+          interface: Ethernet1
+      Management0:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 172.20.20.2/24
+        ipv6:
+        - 3fff:172:20:20::2/64
+        peer: null
+    routing:
+      ospfv2:
+        enabled: false
+      ospfv3:
+        enabled: false
+      ripv2:
+        enabled: false
+      bgp:
+        enabled: true
+        local_asn: 65000
+        router_id: 5.5.5.5
+        neighbors:
+        - address: 10.3.5.1
+          transport_address_family: ipv4
+          remote_asn: 65001
+          address_families:
+            ipv4:
+              configured_activation: true
+            ipv6:
+              configured_activation: null
+        - address: 10.4.5.1
+          transport_address_family: ipv4
+          remote_asn: 65001
+          address_families:
+            ipv4:
+              configured_activation: true
+            ipv6:
+              configured_activation: null
+        - address: 2001:db8:3:5::1
+          transport_address_family: ipv6
+          remote_asn: 65001
+          address_families:
+            ipv4:
+              configured_activation: null
+            ipv6:
+              configured_activation: true
+        - address: 2001:db8:4:5::1
+          transport_address_family: ipv6
+          remote_asn: 65001
+          address_families:
+            ipv4:
+              configured_activation: null
+            ipv6:
+              configured_activation: true
+        networks:
+          ipv4:
+          - prefix: 203.0.113.0/30
+            route_map: null
+          ipv6:
+          - prefix: 2001:db8:203:113::/64
+            route_map: null
+    redistribution: []
+    policy:
+      prefix_lists:
+        ipv4: {}
+        ipv6: {}
+      route_maps: {}
+    vlans: {}
+  S1:
+    hostname: S1
+    role: access_switch
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    management:
+      interface: Management0
+      ipv4: 172.20.20.7
+      ipv4_prefix: 172.20.20.7/24
+      ipv6: 3fff:172:20:20::7/64
+    template: templates/arista_ceos.j2
+    interfaces:
+      Ethernet1:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.1.11.2/30
+        ipv6:
+        - 2001:db8:1:11::2/64
+        peer:
+          device: R1
+          interface: Ethernet2
+      Ethernet2:
+        description: null
+        admin_state: up
+        forwarding_model: bridged
+        ipv4: []
+        ipv6: []
+        peer:
+          device: S2
+          interface: Ethernet2
+        switchport:
+          mode: trunk
+          access_vlan: null
+          trunk_allowed_vlans:
+          - 10
+          - 20
+          - 30
+          - 900
+      Ethernet3:
+        description: null
+        admin_state: up
+        forwarding_model: bridged
+        ipv4: []
+        ipv6: []
+        peer:
+          device: H1
+          interface: eth1
+        switchport:
+          mode: access
+          access_vlan: 10
+          trunk_allowed_vlans: []
+      Ethernet4:
+        description: null
+        admin_state: up
+        forwarding_model: bridged
+        ipv4: []
+        ipv6: []
+        peer:
+          device: H2
+          interface: eth1
+        switchport:
+          mode: access
+          access_vlan: 20
+          trunk_allowed_vlans: []
+      Management0:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 172.20.20.7/24
+        ipv6:
+        - 3fff:172:20:20::7/64
+        peer: null
+      Vlan1:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4: []
+        ipv6: []
+        peer: null
+      Vlan10:
+        description: GATEWAY-VLAN10
+        admin_state: up
+        forwarding_model: routed
+        ipv4: &id001
+        - 10.0.10.1/24
+        ipv6: &id002
+        - 2001:db8:10::1/64
+        peer: null
+      Vlan20:
+        description: GATEWAY-VLAN20
+        admin_state: up
+        forwarding_model: routed
+        ipv4: &id003
+        - 10.0.20.1/24
+        ipv6: &id004
+        - 2001:db8:20::1/64
+        peer: null
+      Vlan30:
+        description: GATEWAY-VLAN30
+        admin_state: up
+        forwarding_model: routed
+        ipv4: []
+        ipv6: &id005
+        - 2001:db8:30::1/64
+        peer: null
+      Vlan900:
+        description: L3-transit-to-S2
+        admin_state: up
+        forwarding_model: routed
+        ipv4: &id006
+        - 10.12.12.1/30
+        ipv6: &id007
+        - 2001:db8:12:12::1/64
+        peer: null
+    routing:
+      ospfv2:
+        enabled: false
+      ospfv3:
+        enabled: true
+        process_id: 10
+        router_id: 11.11.11.11
+        areas:
+        - 0.0.0.0
+        networks: []
+        interfaces:
+        - name: Ethernet1
+          area: 0.0.0.0
+          passive: false
+        - name: Vlan10
+          area: 0.0.0.0
+          passive: true
+        - name: Vlan20
+          area: 0.0.0.0
+          passive: true
+        - name: Vlan30
+          area: 0.0.0.0
+          passive: true
+        - name: Vlan900
+          area: 0.0.0.0
+          passive: false
+        passive_interfaces:
+        - Vlan10
+        - Vlan20
+        - Vlan30
+      ripv2:
+        enabled: true
+        version: 2
+        version_verification: lab_topology_intent; EOS collection did not expose an explicit RIP version
+        networks:
+        - 10.1.11.0/30
+        - 10.12.12.0/30
+        interfaces:
+        - Ethernet1
+        - Vlan900
+      bgp:
+        enabled: false
+    redistribution:
+    - source_protocol: connected
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: RIP-CONNECTED-S1
+      qualifiers: null
+      configuration_statement: redistribute connected route-map RIP-CONNECTED-S1
+    policy:
+      prefix_lists:
+        ipv4:
+          RIP-CONNECTED-S1:
+          - sequence: 10
+            action: permit
+            prefix: 10.0.10.0/24
+            ge: null
+            le: null
+          - sequence: 20
+            action: permit
+            prefix: 10.0.20.0/24
+            ge: null
+            le: null
+          - sequence: 30
+            action: permit
+            prefix: 10.1.11.0/30
+            ge: null
+            le: null
+          - sequence: 40
+            action: permit
+            prefix: 10.12.12.0/30
+            ge: null
+            le: null
+        ipv6: {}
+      route_maps:
+        RIP-CONNECTED-S1:
+        - sequence: 10
+          action: permit
+          match:
+          - ip address prefix-list RIP-CONNECTED-S1
+          set: []
+          other_statements: []
+    vlans:
+      10:
+        name: VLAN0010
+        status: active
+        member_interfaces:
+        - Ethernet2
+        - Ethernet3
+        svi: Vlan10
+        svi_ipv4: *id001
+        svi_ipv6: *id002
+      20:
+        name: VLAN0020
+        status: active
+        member_interfaces:
+        - Ethernet2
+        - Ethernet4
+        svi: Vlan20
+        svi_ipv4: *id003
+        svi_ipv6: *id004
+      30:
+        name: VLAN0030
+        status: active
+        member_interfaces:
+        - Ethernet2
+        svi: Vlan30
+        svi_ipv4: []
+        svi_ipv6: *id005
+      900:
+        name: TRANSIT-S1-S2
+        status: active
+        member_interfaces:
+        - Ethernet2
+        svi: Vlan900
+        svi_ipv4: *id006
+        svi_ipv6: *id007
+  S2:
+    hostname: S2
+    role: access_switch
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    management:
+      interface: Management0
+      ipv4: 172.20.20.8
+      ipv4_prefix: 172.20.20.8/24
+      ipv6: 3fff:172:20:20::8/64
+    template: templates/arista_ceos.j2
+    interfaces:
+      Ethernet1:
+        description: TO-R2
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.2.22.2/30
+        ipv6:
+        - 2001:db8:2:22::2/64
+        peer:
+          device: R2
+          interface: Ethernet2
+      Ethernet2:
+        description: null
+        admin_state: up
+        forwarding_model: bridged
+        ipv4: []
+        ipv6: []
+        peer:
+          device: S1
+          interface: Ethernet2
+        switchport:
+          mode: trunk
+          access_vlan: null
+          trunk_allowed_vlans:
+          - 10
+          - 20
+          - 30
+          - 900
+      Ethernet3:
+        description: null
+        admin_state: up
+        forwarding_model: bridged
+        ipv4: []
+        ipv6: []
+        peer:
+          device: H3
+          interface: eth1
+        switchport:
+          mode: access
+          access_vlan: 10
+          trunk_allowed_vlans: []
+      Ethernet4:
+        description: null
+        admin_state: up
+        forwarding_model: bridged
+        ipv4: []
+        ipv6: []
+        peer:
+          device: H4
+          interface: eth1
+        switchport:
+          mode: access
+          access_vlan: 30
+          trunk_allowed_vlans: []
+      Management0:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 172.20.20.8/24
+        ipv6:
+        - 3fff:172:20:20::8/64
+        peer: null
+      Vlan900:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4: &id008
+        - 10.12.12.2/30
+        ipv6: &id009
+        - 2001:db8:12:12::2/64
+        peer: null
+    routing:
+      ospfv2:
+        enabled: false
+      ospfv3:
+        enabled: true
+        process_id: 10
+        router_id: 22.22.22.22
+        areas:
+        - 0.0.0.0
+        networks: []
+        interfaces:
+        - name: Ethernet1
+          area: 0.0.0.0
+          passive: false
+        - name: Vlan900
+          area: 0.0.0.0
+          passive: false
+        passive_interfaces: []
+      ripv2:
+        enabled: true
+        version: 2
+        version_verification: lab_topology_intent; EOS collection did not expose an explicit RIP version
+        networks:
+        - 10.2.22.0/30
+        - 10.12.12.0/30
+        interfaces:
+        - Ethernet1
+        - Vlan900
+      bgp:
+        enabled: false
+    redistribution:
+    - source_protocol: connected
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: RIP-CONNECTED-S2
+      qualifiers: null
+      configuration_statement: redistribute connected route-map RIP-CONNECTED-S2
+    policy:
+      prefix_lists:
+        ipv4:
+          RIP-CONNECTED-S2:
+          - sequence: 10
+            action: permit
+            prefix: 10.12.12.0/30
+            ge: null
+            le: null
+          - sequence: 20
+            action: permit
+            prefix: 10.2.22.0/30
+            ge: null
+            le: null
+        ipv6: {}
+      route_maps:
+        RIP-CONNECTED-S2:
+        - sequence: 10
+          action: permit
+          match:
+          - ip address prefix-list RIP-CONNECTED-S2
+          set: []
+          other_statements: []
+    vlans:
+      10:
+        name: VLAN0010
+        status: active
+        member_interfaces:
+        - Ethernet2
+        - Ethernet3
+        svi: null
+      20:
+        name: VLAN0020
+        status: active
+        member_interfaces:
+        - Ethernet2
+        svi: null
+      30:
+        name: VLAN0030
+        status: active
+        member_interfaces:
+        - Ethernet2
+        - Ethernet4
+        svi: null
+      900:
+        name: VLAN0900
+        status: active
+        member_interfaces:
+        - Ethernet2
+        svi: Vlan900
+        svi_ipv4: *id008
+        svi_ipv6: *id009
+  S3:
+    hostname: S3
+    role: core_switch
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    management:
+      interface: Management0
+      ipv4: 172.20.20.4
+      ipv4_prefix: 172.20.20.4/24
+      ipv6: 3fff:172:20:20::4/64
+    template: templates/arista_ceos.j2
+    interfaces:
+      Ethernet1:
+        description: to-R3-eth2
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.3.33.2/30
+        ipv6:
+        - 2001:db8:3:33::2/64
+        peer:
+          device: R3
+          interface: Ethernet2
+      Ethernet2:
+        description: to-S4-Eth2
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.33.44.1/30
+        ipv6:
+        - 2001:db8:33:44::1/64
+        peer:
+          device: S4
+          interface: Ethernet2
+      Ethernet3:
+        description: TO-R1_ETH1
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.1.33.2/30
+        ipv6:
+        - 2001:db8:1:33::2/64
+        peer:
+          device: R1
+          interface: Ethernet1
+      Management0:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 172.20.20.4/24
+        ipv6:
+        - 3fff:172:20:20::4/64
+        peer: null
+    routing:
+      ospfv2:
+        enabled: true
+        process_id: 10
+        router_id: 33.33.33.33
+        areas:
+        - 0.0.0.0
+        networks:
+        - prefix: 10.1.33.0/30
+          area: 0.0.0.0
+        - prefix: 10.3.33.0/30
+          area: 0.0.0.0
+        - prefix: 10.33.44.0/30
+          area: 0.0.0.0
+        interfaces:
+        - name: Ethernet1
+          area: 0.0.0.0
+          passive: false
+        - name: Ethernet2
+          area: 0.0.0.0
+          passive: false
+        - name: Ethernet3
+          area: 0.0.0.0
+          passive: false
+        passive_interfaces: []
+      ospfv3:
+        enabled: true
+        process_id: 10
+        router_id: 33.33.33.33
+        areas:
+        - 0.0.0.0
+        networks: []
+        interfaces:
+        - name: Ethernet1
+          area: 0.0.0.0
+          passive: false
+        - name: Ethernet2
+          area: 0.0.0.0
+          passive: false
+        - name: Ethernet3
+          area: 0.0.0.0
+          passive: false
+        passive_interfaces: []
+      ripv2:
+        enabled: false
+      bgp:
+        enabled: false
+    redistribution: []
+    policy:
+      prefix_lists:
+        ipv4: {}
+        ipv6: {}
+      route_maps: {}
+    vlans: {}
+  S4:
+    hostname: S4
+    role: core_switch
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    management:
+      interface: Management0
+      ipv4: 172.20.20.10
+      ipv4_prefix: 172.20.20.10/24
+      ipv6: 3fff:172:20:20::a/64
+    template: templates/arista_ceos.j2
+    interfaces:
+      Ethernet1:
+        description: to-R4-eth2
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.4.44.2/30
+        ipv6:
+        - 2001:db8:4:44::2/64
+        peer:
+          device: R4
+          interface: Ethernet2
+      Ethernet2:
+        description: to-S3-eth2
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.33.44.2/30
+        ipv6:
+        - 2001:db8:33:44::2/64
+        peer:
+          device: S3
+          interface: Ethernet2
+      Ethernet3:
+        description: to-R2-eth1
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 10.2.44.2/30
+        ipv6:
+        - 2001:db8:2:44::2/64
+        peer:
+          device: R2
+          interface: Ethernet1
+      Management0:
+        description: null
+        admin_state: up
+        forwarding_model: routed
+        ipv4:
+        - 172.20.20.10/24
+        ipv6:
+        - 3fff:172:20:20::a/64
+        peer: null
+    routing:
+      ospfv2:
+        enabled: true
+        process_id: 10
+        router_id: 44.44.44.44
+        areas:
+        - 0.0.0.0
+        networks:
+        - prefix: 10.2.44.0/30
+          area: 0.0.0.0
+        - prefix: 10.4.44.0/30
+          area: 0.0.0.0
+        - prefix: 10.33.44.0/30
+          area: 0.0.0.0
+        interfaces:
+        - name: Ethernet1
+          area: 0.0.0.0
+          passive: false
+        - name: Ethernet2
+          area: 0.0.0.0
+          passive: false
+        - name: Ethernet3
+          area: 0.0.0.0
+          passive: false
+        passive_interfaces: []
+      ospfv3:
+        enabled: true
+        process_id: 10
+        router_id: 44.44.44.44
+        areas:
+        - 0.0.0.0
+        networks: []
+        interfaces:
+        - name: Ethernet1
+          area: 0.0.0.0
+          passive: false
+        - name: Ethernet2
+          area: 0.0.0.0
+          passive: false
+        - name: Ethernet3
+          area: 0.0.0.0
+          passive: false
+        passive_interfaces: []
+      ripv2:
+        enabled: false
+      bgp:
+        enabled: false
+    redistribution: []
+    policy:
+      prefix_lists:
+        ipv4: {}
+        ipv6: {}
+      route_maps: {}
+    vlans: {}
+endpoints:
+  H1:
+    type: host
+    attached_to: S1
+    interface: Ethernet3
+    vlan: 10
+  H2:
+    type: host
+    attached_to: S1
+    interface: Ethernet4
+    vlan: 20
+  H3:
+    type: host
+    attached_to: S2
+    interface: Ethernet3
+    vlan: 10
+  H4:
+    type: host
+    attached_to: S2
+    interface: Ethernet4
+    vlan: 30
+  web-server:
+    type: server
+    attached_to: R5
+    interface: Ethernet1
+    ipv4_subnet: 203.0.113.0/30
+    ipv6_subnet: 2001:db8:203:113::/64
+validation_notes:
+- severity: important
+  device: R4
+  issue: Observed BGP address-family activation entries for 10.3.5.2 and 2001:db8:3:5::2 have no configured remote ASN and
+    no operational session.
+  nsot_action: Excluded from intended BGP neighbor list.
+- severity: warning
+  device: R4/R5
+  issue: The IPv6 BGP session on the R4-R5 path was not Established in collected operational data; R5 showed 2001:db8:4:5::1
+    in Active state.
+  nsot_action: Desired direct IPv6 peer is retained because remote-AS configuration exists, but operational health should
+    be fixed/validated separately.
+- severity: information
+  device: R3/R4/R5
+  issue: Collected configuration shows R3 ASN 65001, R4 ASN 65001, and R5 ASN 65000.
+  nsot_action: R3 and R4 are modeled in the same AS 65001; only R5 is in AS 65000.
