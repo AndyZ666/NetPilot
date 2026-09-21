@@ -1,0 +1,90 @@
+! ============================================================
+! NetPilot generated configuration
+! Source of Truth: inventory/devices.yml
+! Device: {{ device.hostname }}
+! ============================================================
+!
+hostname {{ device.hostname }}
+!
+{# ---------------- VLAN database ---------------- #}
+{% for vlan_id, vlan in device.vlans.items() %}
+vlan {{ vlan_id }}
+{% if vlan.name %}   name {{ vlan.name }}
+{% endif %}!
+{% endfor %}
+{# ---------------- Interfaces ---------------- #}
+{% set ospfv3_map = {} %}
+{% if device.routing.ospfv3.enabled %}
+{% for ospf_if in device.routing.ospfv3.interfaces %}
+{% set _ = ospfv3_map.update({ospf_if.name: ospf_if}) %}
+{% endfor %}
+{% endif %}
+{% for ifname, iface in device.interfaces.items() %}
+interface {{ ifname }}
+{% if iface.description %}   description {{ iface.description }}
+{% endif %}{% if iface.forwarding_model == 'routed' and not ifname.startswith('Vlan') and not ifname.startswith('Management') %}   no switchport
+{% endif %}{% if iface.forwarding_model == 'bridged' and iface.switchport is defined %}{% if iface.switchport.mode == 'access' %}   switchport mode access
+   switchport access vlan {{ iface.switchport.access_vlan }}
+{% elif iface.switchport.mode == 'trunk' %}   switchport mode trunk
+{% if iface.switchport.trunk_allowed_vlans %}   switchport trunk allowed vlan {{ iface.switchport.trunk_allowed_vlans | join(',') }}
+{% endif %}{% endif %}{% endif %}{% for address in iface.ipv4 %}   ip address {{ address }}
+{% endfor %}{% for address in iface.ipv6 %}   ipv6 address {{ address }}
+{% endfor %}{% if ifname in ospfv3_map %}   ipv6 ospf {{ device.routing.ospfv3.process_id }} area {{ ospfv3_map[ifname].area }}
+{% endif %}{% if iface.admin_state == 'up' %}   no shutdown
+{% elif iface.admin_state == 'down' %}   shutdown
+{% endif %}!
+{% endfor %}
+{# ---------------- Prefix lists ---------------- #}
+{% for name, entries in device.policy.prefix_lists.ipv4.items() %}
+{% for entry in entries %}ip prefix-list {{ name }} seq {{ entry.sequence }} {{ entry.action }} {{ entry.prefix }}{% if entry.ge %} ge {{ entry.ge }}{% endif %}{% if entry.le %} le {{ entry.le }}{% endif %}
+{% endfor %}{% endfor %}{% for name, entries in device.policy.prefix_lists.ipv6.items() %}
+{% for entry in entries %}ipv6 prefix-list {{ name }} seq {{ entry.sequence }} {{ entry.action }} {{ entry.prefix }}{% if entry.ge %} ge {{ entry.ge }}{% endif %}{% if entry.le %} le {{ entry.le }}{% endif %}
+{% endfor %}{% endfor %}
+{# ---------------- Route maps ---------------- #}
+{% for name, sequences in device.policy.route_maps.items() %}
+{% for seq in sequences %}route-map {{ name }} {{ seq.action }} {{ seq.sequence }}
+{% for line in seq.match %}   match {{ line }}
+{% endfor %}{% for line in seq.set %}   set {{ line }}
+{% endfor %}{% for line in seq.other_statements %}   {{ line }}
+{% endfor %}!
+{% endfor %}{% endfor %}
+{# ---------------- OSPFv2 ---------------- #}
+{% if device.routing.ospfv2.enabled %}
+router ospf {{ device.routing.ospfv2.process_id }}
+   router-id {{ device.routing.ospfv2.router_id }}
+{% for item in device.routing.ospfv2.networks %}   network {{ item.prefix }} area {{ item.area }}
+{% endfor %}{% for ifname in device.routing.ospfv2.passive_interfaces %}   passive-interface {{ ifname }}
+{% endfor %}{% for redist in device.redistribution if redist.destination_protocol == 'ospfv2' %}   {{ redist.configuration_statement }}
+{% endfor %}!
+{% endif %}
+{# ---------------- OSPFv3 ---------------- #}
+{% if device.routing.ospfv3.enabled %}
+ipv6 router ospf {{ device.routing.ospfv3.process_id }}
+   router-id {{ device.routing.ospfv3.router_id }}
+{% for ifname in device.routing.ospfv3.passive_interfaces %}   passive-interface {{ ifname }}
+{% endfor %}{% for redist in device.redistribution if redist.destination_protocol == 'ospfv3' %}   {{ redist.configuration_statement }}
+{% endfor %}!
+{% endif %}
+{# ---------------- RIP ---------------- #}
+{% if device.routing.ripv2.enabled %}
+router rip
+{% for network in device.routing.ripv2.networks %}   network {{ network }}
+{% endfor %}{% for redist in device.redistribution if redist.destination_protocol == 'rip' %}   {{ redist.configuration_statement }}
+{% endfor %}!
+{% endif %}
+{# ---------------- BGP ---------------- #}
+{% if device.routing.bgp.enabled %}
+router bgp {{ device.routing.bgp.local_asn }}
+   router-id {{ device.routing.bgp.router_id }}
+{% for nbr in device.routing.bgp.neighbors %}   neighbor {{ nbr.address }} remote-as {{ nbr.remote_asn }}
+{% endfor %}   !
+   address-family ipv4
+{% for nbr in device.routing.bgp.neighbors if nbr.transport_address_family == 'ipv4' %}   neighbor {{ nbr.address }} activate
+{% endfor %}{% for net in device.routing.bgp.networks.ipv4 %}   network {{ net.prefix }}{% if net.route_map %} route-map {{ net.route_map }}{% endif %}
+{% endfor %}   !
+   address-family ipv6
+{% for nbr in device.routing.bgp.neighbors if nbr.transport_address_family == 'ipv6' %}   neighbor {{ nbr.address }} activate
+{% endfor %}{% for net in device.routing.bgp.networks.ipv6 %}   network {{ net.prefix }}{% if net.route_map %} route-map {{ net.route_map }}{% endif %}
+{% endfor %}!
+{% endif %}
+end
