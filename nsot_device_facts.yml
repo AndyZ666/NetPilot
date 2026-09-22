@@ -1,0 +1,2574 @@
+metadata:
+  schema_version: 1
+  generated_at_utc: '2026-09-21T21:29:31.305244+00:00'
+  lab_name: pilot-network
+  topology_file: nettopo.clab.yml
+  collection_method: Read-only EOS show commands through docker exec Cli -p 15 -c
+  conventions:
+    'null': Unconfirmed or not applicable; protocol absence is separately recorded in protocols_not_configured.
+      No default values are assumed.
+    empty_list: Confirmed no entries in the collected configuration or operational output.
+    addresses: IPv4/IPv6 interface prefixes include configured and observed addresses; IPv6 link-local is separate.
+      EOS unassigned 0.0.0.0/0 placeholders are excluded.
+    shutdown: Explicit configuration or observed up state confirms administrative state; an otherwise ambiguous
+      down state is null.
+    topology_peers: Peer endpoints come from nettopo.clab.yml; ethN is mapped to an observed EOS EthernetN interface.
+      LLDP confirmation is recorded independently.
+    bgp_networks: Configured origination statements and observed per-neighbor advertisements are recorded separately.
+devices:
+  R1:
+    hostname: R1
+    management_ip: 172.20.20.13
+    management_interface: Management0
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    topology:
+      node: R1
+      kind: ceos
+      image: ceos:4.36.2F
+    collected_at_utc: '2026-09-21T21:23:05.120532+00:00'
+    interfaces:
+      Ethernet1:
+        description: TO-S3-Eth3
+        ipv4_addresses:
+        - 10.1.33.1/30
+        ipv6_addresses:
+        - 2001:db8:1:33::1/64
+        ipv6_link_local: fe80::a8c1:abff:fed2:9579/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: S3
+          interface: Ethernet3
+          local_topology_interface: eth1
+          peer_topology_interface: eth3
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Ethernet2:
+        description: null
+        ipv4_addresses:
+        - 10.1.11.1/30
+        ipv6_addresses:
+        - 2001:db8:1:11::1/64
+        ipv6_link_local: fe80::a8c1:abff:feeb:5601/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: S1
+          interface: Ethernet1
+          local_topology_interface: eth2
+          peer_topology_interface: eth1
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Management0:
+        description: null
+        ipv4_addresses:
+        - 172.20.20.13/24
+        ipv6_addresses:
+        - 3fff:172:20:20::d/64
+        ipv6_link_local: fe80::21c:73ff:fec0:8061/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer: null
+    routing_protocols:
+      ospfv2:
+        processes:
+        - process_id: 10
+          vrf: default
+          router_id: 1.1.1.1
+          areas:
+          - 0.0.0.0
+          networks:
+          - prefix: 10.1.33.0/30
+            area: 0.0.0.0
+          interfaces:
+          - name: Ethernet1
+            area: 0.0.0.0
+            passive: false
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: false
+          passive_interfaces: []
+          shutdown: false
+      ospfv3:
+        processes:
+        - process_id: 10
+          vrf: default
+          router_id: 1.1.1.1
+          areas:
+          - 0.0.0.0
+          networks: []
+          interfaces:
+          - name: Ethernet1
+            area: 0.0.0.0
+            passive: false
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          - name: Ethernet2
+            area: 0.0.0.0
+            passive: false
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          passive_interfaces: []
+          shutdown: false
+      ripv2:
+        version: null
+        shutdown: false
+        networks:
+        - 10.1.11.0/30
+        interfaces:
+        - name: Ethernet2
+          matched_configured_networks:
+          - 10.1.11.0/30
+          evidence: configured RIP network and show ip rip database
+          observed_in_operational_output: true
+        observed_neighbors:
+        - address: 10.1.11.2
+          routes: 5
+          flags:
+          - ACCEPTED
+          - QUERY
+      bgp: null
+    redistribution:
+    - source_protocol: connected
+      destination_protocol: ospfv2
+      destination_process_id: 10
+      route_map: R1-connected-to-ospf
+      qualifiers: null
+      configuration_statement: redistribute connected route-map R1-connected-to-ospf
+    - source_protocol: rip
+      destination_protocol: ospfv2
+      destination_process_id: 10
+      route_map: RIP-TO-OSPF
+      qualifiers: null
+      configuration_statement: redistribute rip route-map RIP-TO-OSPF
+    - source_protocol: ospfv2
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: OSPF-TO-RIP
+      qualifiers: match internal
+      configuration_statement: redistribute ospf match internal route-map OSPF-TO-RIP
+    - source_protocol: ospfv2
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: OSPF-TO-RIP
+      qualifiers: match external
+      configuration_statement: redistribute ospf match external route-map OSPF-TO-RIP
+    - source_protocol: connected
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: RIP-CONNECTED-R1
+      qualifiers: null
+      configuration_statement: redistribute connected route-map RIP-CONNECTED-R1
+    prefix_lists:
+      ipv4:
+        CORE-OSPF-PREFIXES:
+        - sequence: 10
+          action: permit
+          prefix: 10.1.33.0/30
+          ge: null
+          le: null
+        - sequence: 20
+          action: permit
+          prefix: 10.2.44.0/30
+          ge: null
+          le: null
+        - sequence: 30
+          action: permit
+          prefix: 10.3.33.0/30
+          ge: null
+          le: null
+        - sequence: 40
+          action: permit
+          prefix: 10.4.44.0/30
+          ge: null
+          le: null
+        - sequence: 50
+          action: permit
+          prefix: 10.33.44.0/30
+          ge: null
+          le: null
+        - sequence: 60
+          action: permit
+          prefix: 10.3.4.0/30
+          ge: null
+          le: null
+        - sequence: 70
+          action: permit
+          prefix: 203.0.113.0/30
+          ge: null
+          le: null
+        LOWER-RIP-PREFIXES:
+        - sequence: 10
+          action: permit
+          prefix: 10.0.10.0/24
+          ge: null
+          le: null
+        - sequence: 20
+          action: permit
+          prefix: 10.0.20.0/24
+          ge: null
+          le: null
+        - sequence: 30
+          action: permit
+          prefix: 10.1.11.0/30
+          ge: null
+          le: null
+        - sequence: 40
+          action: permit
+          prefix: 10.12.12.0/30
+          ge: null
+          le: null
+        - sequence: 50
+          action: permit
+          prefix: 10.2.22.0/30
+          ge: null
+          le: null
+        RIP-CONNECTED-R1:
+        - sequence: 10
+          action: permit
+          prefix: 10.1.11.0/30
+          ge: null
+          le: null
+      ipv6: {}
+    route_maps:
+      OSPF-TO-RIP:
+      - sequence: 10
+        action: permit
+        match:
+        - ip address prefix-list CORE-OSPF-PREFIXES
+        set: []
+        other_statements: []
+      R1-connected-to-ospf:
+      - sequence: 10
+        action: permit
+        match:
+        - ip address prefix-list LOWER-RIP-PREFIXES
+        set: []
+        other_statements: []
+      RIP-CONNECTED-R1:
+      - sequence: 10
+        action: permit
+        match:
+        - ip address prefix-list RIP-CONNECTED-R1
+        set: []
+        other_statements: []
+      RIP-TO-OSPF:
+      - sequence: 10
+        action: permit
+        match:
+        - ip address prefix-list LOWER-RIP-PREFIXES
+        set: []
+        other_statements: []
+    vlans:
+      1:
+        name: default
+        status: active
+        member_interfaces: []
+        svi: null
+    protocols_not_configured:
+    - bgp
+    undetermined:
+    - RIP is configured; its protocol version is not shown in running configuration or available operational output.
+    sources:
+      commands_succeeded:
+      - show running-config
+      - show version | json
+      - show hostname | json
+      - show interfaces | json
+      - show ip interface | json
+      - show ipv6 interface | json
+      - show vlan | json
+      - show ip ospf | json
+      - show ip ospf interface | json
+      - show ipv6 ospf | json
+      - show ipv6 ospf interface | json
+      - show version
+      - show interfaces status | json
+      - show lldp neighbors | json
+      - show ip rip neighbors
+      - show ip rip database
+      - show running-config all | section router rip
+      commands_unavailable:
+      - show ip protocols
+      - show ip rip | json
+      - show ip bgp summary | json
+      - show ipv6 bgp summary | json
+      - show ip rip ?
+      - show ip rip interface
+      - show ip rip status
+      - show ip rip neighbors | json
+      - show ip rip interfaces | json
+      - show ip rip database | json
+  R2:
+    hostname: R2
+    management_ip: 172.20.20.14
+    management_interface: Management0
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    topology:
+      node: R2
+      kind: ceos
+      image: ceos:4.36.2F
+    collected_at_utc: '2026-09-21T21:23:05.121109+00:00'
+    interfaces:
+      Ethernet1:
+        description: to-S4-eth3
+        ipv4_addresses:
+        - 10.2.44.1/30
+        ipv6_addresses:
+        - 2001:db8:2:44::1/64
+        ipv6_link_local: fe80::a8c1:abff:fe84:d5cc/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: S4
+          interface: Ethernet3
+          local_topology_interface: eth1
+          peer_topology_interface: eth3
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Ethernet2:
+        description: null
+        ipv4_addresses:
+        - 10.2.22.1/30
+        ipv6_addresses:
+        - 2001:db8:2:22::1/64
+        ipv6_link_local: fe80::a8c1:abff:fe75:3b1e/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: S2
+          interface: Ethernet1
+          local_topology_interface: eth2
+          peer_topology_interface: eth1
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Management0:
+        description: null
+        ipv4_addresses:
+        - 172.20.20.14/24
+        ipv6_addresses:
+        - 3fff:172:20:20::e/64
+        ipv6_link_local: fe80::21c:73ff:fe12:ce6c/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer: null
+    routing_protocols:
+      ospfv2:
+        processes:
+        - process_id: 10
+          vrf: default
+          router_id: 2.2.2.2
+          areas:
+          - 0.0.0.0
+          networks:
+          - prefix: 10.2.44.0/30
+            area: 0.0.0.0
+          interfaces:
+          - name: Ethernet1
+            area: 0.0.0.0
+            passive: false
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: false
+          passive_interfaces: []
+          shutdown: false
+      ospfv3:
+        processes:
+        - process_id: 10
+          vrf: default
+          router_id: 2.2.2.2
+          areas:
+          - 0.0.0.0
+          networks: []
+          interfaces:
+          - name: Ethernet1
+            area: 0.0.0.0
+            passive: false
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          - name: Ethernet2
+            area: 0.0.0.0
+            passive: false
+            state: backupDr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          passive_interfaces: []
+          shutdown: false
+      ripv2:
+        version: null
+        shutdown: false
+        networks:
+        - 10.2.22.0/30
+        interfaces:
+        - name: Ethernet2
+          matched_configured_networks:
+          - 10.2.22.0/30
+          evidence: configured RIP network and show ip rip database
+          observed_in_operational_output: true
+        observed_neighbors:
+        - address: 10.2.22.2
+          routes: 5
+          flags:
+          - ACCEPTED
+      bgp: null
+    redistribution:
+    - source_protocol: connected
+      destination_protocol: ospfv2
+      destination_process_id: 10
+      route_map: R2-connected-to-ospf
+      qualifiers: null
+      configuration_statement: redistribute connected route-map R2-connected-to-ospf
+    - source_protocol: rip
+      destination_protocol: ospfv2
+      destination_process_id: 10
+      route_map: RIP-TO-OSPF
+      qualifiers: null
+      configuration_statement: redistribute rip route-map RIP-TO-OSPF
+    - source_protocol: ospfv2
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: OSPF-TO-RIP
+      qualifiers: match internal
+      configuration_statement: redistribute ospf match internal route-map OSPF-TO-RIP
+    - source_protocol: ospfv2
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: OSPF-TO-RIP
+      qualifiers: match external
+      configuration_statement: redistribute ospf match external route-map OSPF-TO-RIP
+    - source_protocol: connected
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: rip-connected-r2
+      qualifiers: null
+      configuration_statement: redistribute connected route-map rip-connected-r2
+    prefix_lists:
+      ipv4:
+        CORE-OSPF-PREFIXES:
+        - sequence: 10
+          action: permit
+          prefix: 10.1.33.0/30
+          ge: null
+          le: null
+        - sequence: 20
+          action: permit
+          prefix: 10.2.44.0/30
+          ge: null
+          le: null
+        - sequence: 30
+          action: permit
+          prefix: 10.3.33.0/30
+          ge: null
+          le: null
+        - sequence: 40
+          action: permit
+          prefix: 10.4.44.0/30
+          ge: null
+          le: null
+        - sequence: 50
+          action: permit
+          prefix: 10.33.44.0/30
+          ge: null
+          le: null
+        - sequence: 60
+          action: permit
+          prefix: 10.3.4.0/30
+          ge: null
+          le: null
+        - sequence: 70
+          action: permit
+          prefix: 203.0.113.0/30
+          ge: null
+          le: null
+        LOWER-RIP-PREFIXES:
+        - sequence: 10
+          action: permit
+          prefix: 10.0.10.0/24
+          ge: null
+          le: null
+        - sequence: 20
+          action: permit
+          prefix: 10.0.20.0/24
+          ge: null
+          le: null
+        - sequence: 30
+          action: permit
+          prefix: 10.1.11.0/30
+          ge: null
+          le: null
+        - sequence: 40
+          action: permit
+          prefix: 10.12.12.0/30
+          ge: null
+          le: null
+        - sequence: 50
+          action: permit
+          prefix: 10.2.22.0/30
+          ge: null
+          le: null
+        rip-connected-r2:
+        - sequence: 10
+          action: permit
+          prefix: 10.2.22.0/30
+          ge: null
+          le: null
+      ipv6: {}
+    route_maps:
+      OSPF-TO-RIP:
+      - sequence: 10
+        action: permit
+        match:
+        - ip address prefix-list CORE-OSPF-PREFIXES
+        set: []
+        other_statements: []
+      R2-connected-to-ospf:
+      - sequence: 10
+        action: permit
+        match:
+        - ip address prefix-list LOWER-RIP-PREFIXES
+        set: []
+        other_statements: []
+      RIP-TO-OSPF:
+      - sequence: 10
+        action: permit
+        match:
+        - ip address prefix-list LOWER-RIP-PREFIXES
+        set: []
+        other_statements: []
+      rip-connected-r2:
+      - sequence: 10
+        action: permit
+        match:
+        - ip address prefix-list rip-connected-r2
+        set: []
+        other_statements: []
+    vlans:
+      1:
+        name: default
+        status: active
+        member_interfaces: []
+        svi: null
+    protocols_not_configured:
+    - bgp
+    undetermined:
+    - RIP is configured; its protocol version is not shown in running configuration or available operational output.
+    sources:
+      commands_succeeded:
+      - show running-config
+      - show version | json
+      - show hostname | json
+      - show interfaces | json
+      - show ip interface | json
+      - show ipv6 interface | json
+      - show vlan | json
+      - show ip ospf | json
+      - show ip ospf interface | json
+      - show ipv6 ospf | json
+      - show ipv6 ospf interface | json
+      - show version
+      - show interfaces status | json
+      - show lldp neighbors | json
+      - show ip rip neighbors
+      - show ip rip database
+      commands_unavailable:
+      - show ip protocols
+      - show ip rip | json
+      - show ip bgp summary | json
+      - show ipv6 bgp summary | json
+  R3:
+    hostname: R3
+    management_ip: 172.20.20.9
+    management_interface: Management0
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    topology:
+      node: R3
+      kind: ceos
+      image: ceos:4.36.2F
+    collected_at_utc: '2026-09-21T21:23:05.122184+00:00'
+    interfaces:
+      Ethernet1:
+        description: EBGP-to-R5-eth2
+        ipv4_addresses:
+        - 10.3.5.1/30
+        ipv6_addresses:
+        - 2001:db8:3:5::1/64
+        ipv6_link_local: fe80::a8c1:abff:fe98:62d/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: R5
+          interface: Ethernet2
+          local_topology_interface: eth1
+          peer_topology_interface: eth2
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Ethernet2:
+        description: to-s3-eth1
+        ipv4_addresses:
+        - 10.3.33.1/30
+        ipv6_addresses:
+        - 2001:db8:3:33::1/64
+        ipv6_link_local: fe80::a8c1:abff:fe94:c5eb/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: S3
+          interface: Ethernet1
+          local_topology_interface: eth2
+          peer_topology_interface: eth1
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Ethernet3:
+        description: to-R4-eth3
+        ipv4_addresses:
+        - 10.3.4.1/30
+        ipv6_addresses:
+        - 2001:db8:3:4::1/64
+        ipv6_link_local: fe80::a8c1:abff:fe69:9d78/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: R4
+          interface: Ethernet3
+          local_topology_interface: eth3
+          peer_topology_interface: eth3
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Management0:
+        description: null
+        ipv4_addresses:
+        - 172.20.20.9/24
+        ipv6_addresses:
+        - 3fff:172:20:20::9/64
+        ipv6_link_local: fe80::21c:73ff:fe50:659f/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer: null
+    routing_protocols:
+      ospfv2:
+        processes:
+        - process_id: 10
+          vrf: default
+          router_id: 3.3.3.3
+          areas:
+          - 0.0.0.0
+          networks:
+          - prefix: 10.3.4.0/30
+            area: 0.0.0.0
+          - prefix: 10.3.33.0/30
+            area: 0.0.0.0
+          interfaces:
+          - name: Ethernet2
+            area: 0.0.0.0
+            passive: false
+            state: backupDr
+            observed_in_operational_output: true
+            configured_on_interface: false
+          - name: Ethernet3
+            area: 0.0.0.0
+            passive: false
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: false
+          passive_interfaces: []
+          shutdown: false
+      ospfv3:
+        processes:
+        - process_id: 10
+          vrf: default
+          router_id: 3.3.3.3
+          areas:
+          - 0.0.0.0
+          networks: []
+          interfaces:
+          - name: Ethernet2
+            area: 0.0.0.0
+            passive: false
+            state: backupDr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          - name: Ethernet3
+            area: 0.0.0.0
+            passive: false
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          passive_interfaces: []
+          shutdown: false
+      ripv2: null
+      bgp:
+        local_asn: 65001
+        router_id: 3.3.3.3
+        neighbors:
+        - address: 10.3.5.2
+          transport_address_family: ipv4
+          remote_asn: 65000
+          configured_remote_asn: 65000
+          address_families:
+            ipv4:
+              configured_activation: true
+              observed_in_summary: true
+              state: Established
+              prefixes_received: 1
+              prefixes_advertised: 11
+              observed_advertised_networks:
+              - 10.0.10.0/24
+              - 10.0.20.0/24
+              - 10.1.11.0/30
+              - 10.1.33.0/30
+              - 10.12.12.0/30
+              - 10.2.22.0/30
+              - 10.2.44.0/30
+              - 10.3.33.0/30
+              - 10.3.4.0/30
+              - 10.33.44.0/30
+              - 10.4.44.0/30
+            ipv6:
+              configured_activation: null
+              observed_in_summary: false
+              state: null
+              prefixes_received: null
+              prefixes_advertised: null
+              observed_advertised_networks: null
+        - address: 2001:db8:3:5::2
+          transport_address_family: ipv6
+          remote_asn: 65000
+          configured_remote_asn: 65000
+          address_families:
+            ipv4:
+              configured_activation: null
+              observed_in_summary: false
+              state: null
+              prefixes_received: null
+              prefixes_advertised: null
+              observed_advertised_networks: null
+            ipv6:
+              configured_activation: true
+              observed_in_summary: true
+              state: Established
+              prefixes_received: 1
+              prefixes_advertised: 12
+              observed_advertised_networks:
+              - 2001:db8:10::/64
+              - 2001:db8:12:12::/64
+              - 2001:db8:1:11::/64
+              - 2001:db8:1:33::/64
+              - 2001:db8:20::/64
+              - 2001:db8:2:22::/64
+              - 2001:db8:2:44::/64
+              - 2001:db8:30::/64
+              - 2001:db8:33:44::/64
+              - 2001:db8:3:33::/64
+              - 2001:db8:3:4::/64
+              - 2001:db8:4:44::/64
+        configured_networks:
+          ipv4:
+          - prefix: 10.0.10.0/24
+            route_map: null
+          - prefix: 10.0.20.0/24
+            route_map: null
+          - prefix: 10.1.11.0/30
+            route_map: null
+          - prefix: 10.1.33.0/30
+            route_map: null
+          - prefix: 10.2.22.0/30
+            route_map: null
+          - prefix: 10.2.44.0/30
+            route_map: null
+          - prefix: 10.3.4.0/30
+            route_map: null
+          - prefix: 10.3.33.0/30
+            route_map: null
+          - prefix: 10.4.44.0/30
+            route_map: null
+          - prefix: 10.12.12.0/30
+            route_map: null
+          - prefix: 10.33.44.0/30
+            route_map: null
+          ipv6:
+          - prefix: 2001:db8:1:11::/64
+            route_map: null
+          - prefix: 2001:db8:1:33::/64
+            route_map: null
+          - prefix: 2001:db8:2:22::/64
+            route_map: null
+          - prefix: 2001:db8:2:44::/64
+            route_map: null
+          - prefix: 2001:db8:3:4::/64
+            route_map: null
+          - prefix: 2001:db8:3:33::/64
+            route_map: null
+          - prefix: 2001:db8:4:44::/64
+            route_map: null
+          - prefix: 2001:db8:10::/64
+            route_map: null
+          - prefix: 2001:db8:12:12::/64
+            route_map: null
+          - prefix: 2001:db8:20::/64
+            route_map: null
+          - prefix: 2001:db8:30::/64
+            route_map: null
+          - prefix: 2001:db8:33:44::/64
+            route_map: null
+    redistribution:
+    - source_protocol: bgp
+      destination_protocol: ospfv2
+      destination_process_id: 10
+      route_map: BGP-TO-OSPF-WEB
+      qualifiers: null
+      configuration_statement: redistribute bgp route-map BGP-TO-OSPF-WEB
+    - source_protocol: bgp
+      destination_protocol: ospfv3
+      destination_process_id: 10
+      route_map: BGP-TO-OSPFv3-WEB
+      qualifiers: null
+      configuration_statement: redistribute bgp route-map BGP-TO-OSPFv3-WEB
+    prefix_lists:
+      ipv4:
+        BGP-WEB-V4:
+        - sequence: 10
+          action: permit
+          prefix: 203.0.113.0/30
+          ge: null
+          le: null
+      ipv6:
+        BGP-WEB-V6:
+        - sequence: 10
+          action: permit
+          prefix: 2001:db8:203:113::/64
+          ge: null
+          le: null
+    route_maps:
+      BGP-TO-OSPF-WEB:
+      - sequence: 10
+        action: permit
+        match:
+        - ip address prefix-list BGP-WEB-V4
+        set: []
+        other_statements: []
+      BGP-TO-OSPFv3-WEB:
+      - sequence: 10
+        action: permit
+        match:
+        - ipv6 address prefix-list BGP-WEB-V6
+        set: []
+        other_statements: []
+    vlans:
+      1:
+        name: default
+        status: active
+        member_interfaces: []
+        svi: null
+    protocols_not_configured:
+    - ripv2
+    undetermined: []
+    sources:
+      commands_succeeded:
+      - show running-config
+      - show version | json
+      - show hostname | json
+      - show interfaces | json
+      - show ip interface | json
+      - show ipv6 interface | json
+      - show vlan | json
+      - show ip ospf | json
+      - show ip ospf interface | json
+      - show ipv6 ospf | json
+      - show ipv6 ospf interface | json
+      - show ip bgp summary | json
+      - show ipv6 bgp summary | json
+      - show version
+      - show interfaces status | json
+      - show lldp neighbors | json
+      - show ip bgp neighbors 10.3.5.2 advertised-routes | json
+      - show ipv6 bgp peers 2001:db8:3:5::2 advertised-routes | json
+      commands_unavailable:
+      - show ip protocols
+      - show ip rip | json
+      - show ipv6 bgp neighbors 2001:db8:3:5::2 advertised-routes | json
+      - show bgp ipv6 unicast neighbors 2001:db8:3:5::2 advertised-routes | json
+  R4:
+    hostname: R4
+    management_ip: 172.20.20.11
+    management_interface: Management0
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    topology:
+      node: R4
+      kind: ceos
+      image: ceos:4.36.2F
+    collected_at_utc: '2026-09-21T21:23:10.167349+00:00'
+    interfaces:
+      Ethernet1:
+        description: EBGP-to-R5-eth3
+        ipv4_addresses:
+        - 10.4.5.1/30
+        ipv6_addresses:
+        - 2001:db8:4:5::1/64
+        ipv6_link_local: fe80::a8c1:abff:fe81:52d3/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: R5
+          interface: Ethernet3
+          local_topology_interface: eth1
+          peer_topology_interface: eth3
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Ethernet2:
+        description: null
+        ipv4_addresses:
+        - 10.4.44.1/30
+        ipv6_addresses:
+        - 2001:db8:4:44::1/64
+        ipv6_link_local: fe80::a8c1:abff:fe55:e498/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: S4
+          interface: Ethernet1
+          local_topology_interface: eth2
+          peer_topology_interface: eth1
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Ethernet3:
+        description: to-R3-eth3
+        ipv4_addresses:
+        - 10.3.4.2/30
+        ipv6_addresses:
+        - 2001:db8:3:4::2/64
+        ipv6_link_local: fe80::a8c1:abff:fe24:d091/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: R3
+          interface: Ethernet3
+          local_topology_interface: eth3
+          peer_topology_interface: eth3
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Management0:
+        description: null
+        ipv4_addresses:
+        - 172.20.20.11/24
+        ipv6_addresses:
+        - 3fff:172:20:20::b/64
+        ipv6_link_local: fe80::21c:73ff:fe47:c241/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer: null
+    routing_protocols:
+      ospfv2:
+        processes:
+        - process_id: 10
+          vrf: default
+          router_id: 4.4.4.4
+          areas:
+          - 0.0.0.0
+          networks:
+          - prefix: 10.3.4.0/30
+            area: 0.0.0.0
+          - prefix: 10.4.44.0/30
+            area: 0.0.0.0
+          interfaces:
+          - name: Ethernet2
+            area: 0.0.0.0
+            passive: false
+            state: backupDr
+            observed_in_operational_output: true
+            configured_on_interface: false
+          - name: Ethernet3
+            area: 0.0.0.0
+            passive: false
+            state: backupDr
+            observed_in_operational_output: true
+            configured_on_interface: false
+          passive_interfaces: []
+          shutdown: false
+      ospfv3:
+        processes:
+        - process_id: 10
+          vrf: default
+          router_id: 4.4.4.4
+          areas:
+          - 0.0.0.0
+          networks: []
+          interfaces:
+          - name: Ethernet2
+            area: 0.0.0.0
+            passive: false
+            state: backupDr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          - name: Ethernet3
+            area: 0.0.0.0
+            passive: false
+            state: backupDr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          passive_interfaces: []
+          shutdown: false
+      ripv2: null
+      bgp:
+        local_asn: 65001
+        router_id: 4.4.4.4
+        neighbors:
+        - address: 10.4.5.2
+          transport_address_family: ipv4
+          remote_asn: 65000
+          configured_remote_asn: 65000
+          address_families:
+            ipv4:
+              configured_activation: null
+              observed_in_summary: true
+              state: Established
+              prefixes_received: 1
+              prefixes_advertised: 11
+              observed_advertised_networks:
+              - 10.0.10.0/24
+              - 10.0.20.0/24
+              - 10.1.11.0/30
+              - 10.1.33.0/30
+              - 10.12.12.0/30
+              - 10.2.22.0/30
+              - 10.2.44.0/30
+              - 10.3.33.0/30
+              - 10.3.4.0/30
+              - 10.33.44.0/30
+              - 10.4.44.0/30
+            ipv6:
+              configured_activation: null
+              observed_in_summary: false
+              state: null
+              prefixes_received: null
+              prefixes_advertised: null
+              observed_advertised_networks: null
+        - address: 2001:db8:4:5::2
+          transport_address_family: ipv6
+          remote_asn: 65000
+          configured_remote_asn: 65000
+          address_families:
+            ipv4:
+              configured_activation: null
+              observed_in_summary: false
+              state: null
+              prefixes_received: null
+              prefixes_advertised: null
+              observed_advertised_networks: null
+            ipv6:
+              configured_activation: null
+              observed_in_summary: false
+              state: null
+              prefixes_received: null
+              prefixes_advertised: null
+              observed_advertised_networks: []
+        - address: 10.3.5.2
+          transport_address_family: ipv4
+          remote_asn: null
+          configured_remote_asn: null
+          address_families:
+            ipv4:
+              configured_activation: true
+              observed_in_summary: false
+              state: null
+              prefixes_received: null
+              prefixes_advertised: null
+              observed_advertised_networks: null
+            ipv6:
+              configured_activation: null
+              observed_in_summary: false
+              state: null
+              prefixes_received: null
+              prefixes_advertised: null
+              observed_advertised_networks: null
+        - address: 2001:db8:3:5::2
+          transport_address_family: ipv6
+          remote_asn: null
+          configured_remote_asn: null
+          address_families:
+            ipv4:
+              configured_activation: null
+              observed_in_summary: false
+              state: null
+              prefixes_received: null
+              prefixes_advertised: null
+              observed_advertised_networks: null
+            ipv6:
+              configured_activation: true
+              observed_in_summary: false
+              state: null
+              prefixes_received: null
+              prefixes_advertised: null
+              observed_advertised_networks: null
+        configured_networks:
+          ipv4:
+          - prefix: 10.0.10.0/24
+            route_map: null
+          - prefix: 10.0.20.0/24
+            route_map: null
+          - prefix: 10.1.11.0/30
+            route_map: null
+          - prefix: 10.1.33.0/30
+            route_map: null
+          - prefix: 10.2.22.0/30
+            route_map: null
+          - prefix: 10.2.44.0/30
+            route_map: null
+          - prefix: 10.3.4.0/30
+            route_map: null
+          - prefix: 10.3.33.0/30
+            route_map: null
+          - prefix: 10.4.44.0/30
+            route_map: null
+          - prefix: 10.12.12.0/30
+            route_map: null
+          - prefix: 10.33.44.0/30
+            route_map: null
+          ipv6:
+          - prefix: 2001:db8:1:11::/64
+            route_map: null
+          - prefix: 2001:db8:1:33::/64
+            route_map: null
+          - prefix: 2001:db8:2:22::/64
+            route_map: null
+          - prefix: 2001:db8:2:44::/64
+            route_map: null
+          - prefix: 2001:db8:3:4::/64
+            route_map: null
+          - prefix: 2001:db8:3:33::/64
+            route_map: null
+          - prefix: 2001:db8:4:44::/64
+            route_map: null
+          - prefix: 2001:db8:10::/64
+            route_map: null
+          - prefix: 2001:db8:12:12::/64
+            route_map: null
+          - prefix: 2001:db8:20::/64
+            route_map: null
+          - prefix: 2001:db8:30::/64
+            route_map: null
+          - prefix: 2001:db8:33:44::/64
+            route_map: null
+    redistribution:
+    - source_protocol: bgp
+      destination_protocol: ospfv2
+      destination_process_id: 10
+      route_map: BGP-TO-OSPF-WEB
+      qualifiers: null
+      configuration_statement: redistribute bgp route-map BGP-TO-OSPF-WEB
+    - source_protocol: bgp
+      destination_protocol: ospfv3
+      destination_process_id: 10
+      route_map: BGP-TO-OSPFV3-WEB
+      qualifiers: null
+      configuration_statement: redistribute bgp route-map BGP-TO-OSPFV3-WEB
+    prefix_lists:
+      ipv4:
+        BGP-WEB-V4:
+        - sequence: 10
+          action: permit
+          prefix: 203.0.113.0/30
+          ge: null
+          le: null
+      ipv6:
+        BGP-WEB-V6:
+        - sequence: 10
+          action: permit
+          prefix: 2001:db8:203:113::/64
+          ge: null
+          le: null
+    route_maps:
+      BGP-TO-OSPF-WEB:
+      - sequence: 10
+        action: permit
+        match:
+        - ip address prefix-list BGP-WEB-V4
+        set: []
+        other_statements: []
+      BGP-TO-OSPFV3-WEB:
+      - sequence: 10
+        action: permit
+        match:
+        - ipv6 address prefix-list BGP-WEB-V6
+        set: []
+        other_statements: []
+    vlans:
+      1:
+        name: default
+        status: active
+        member_interfaces: []
+        svi: null
+    protocols_not_configured:
+    - ripv2
+    undetermined:
+    - BGP neighbor 10.3.5.2 appears in address-family activation configuration but has no remote ASN in configuration
+      or operational summaries.
+    - BGP neighbor 2001:db8:3:5::2 appears in address-family activation configuration but has no remote ASN in configuration
+      or operational summaries.
+    sources:
+      commands_succeeded:
+      - show running-config
+      - show version | json
+      - show hostname | json
+      - show interfaces | json
+      - show ip interface | json
+      - show ipv6 interface | json
+      - show vlan | json
+      - show ip ospf | json
+      - show ip ospf interface | json
+      - show ipv6 ospf | json
+      - show ipv6 ospf interface | json
+      - show ip bgp summary | json
+      - show ipv6 bgp summary | json
+      - show version
+      - show interfaces status | json
+      - show lldp neighbors | json
+      - show ip bgp neighbors 10.4.5.2 advertised-routes | json
+      - show ipv6 bgp peers 2001:db8:4:5::2 advertised-routes | json
+      commands_unavailable:
+      - show ip protocols
+      - show ip rip | json
+      - show ipv6 bgp neighbors 2001:db8:4:5::2 advertised-routes | json
+      - show bgp ipv6 unicast neighbors 2001:db8:4:5::2 advertised-routes | json
+  R5:
+    hostname: R5
+    management_ip: 172.20.20.2
+    management_interface: Management0
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    topology:
+      node: R5
+      kind: ceos
+      image: ceos:4.36.2F
+    collected_at_utc: '2026-09-21T21:23:10.265854+00:00'
+    interfaces:
+      Ethernet1:
+        description: TO-web-server
+        ipv4_addresses:
+        - 203.0.113.1/30
+        ipv6_addresses:
+        - 2001:db8:203:113::1/64
+        ipv6_link_local: fe80::a8c1:abff:fe3d:8f10/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: web-server
+          interface: eth1
+          local_topology_interface: eth1
+          peer_topology_interface: eth1
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: false
+      Ethernet2:
+        description: null
+        ipv4_addresses:
+        - 10.3.5.2/30
+        ipv6_addresses:
+        - 2001:db8:3:5::2/64
+        ipv6_link_local: fe80::a8c1:abff:fe08:30d6/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: R3
+          interface: Ethernet1
+          local_topology_interface: eth2
+          peer_topology_interface: eth1
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Ethernet3:
+        description: EBGP-to-R4-eth1
+        ipv4_addresses:
+        - 10.4.5.2/30
+        ipv6_addresses:
+        - 2001:db8:4:5::2/64
+        ipv6_link_local: fe80::a8c1:abff:fe21:eeeb/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: R4
+          interface: Ethernet1
+          local_topology_interface: eth3
+          peer_topology_interface: eth1
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Management0:
+        description: null
+        ipv4_addresses:
+        - 172.20.20.2/24
+        ipv6_addresses:
+        - 3fff:172:20:20::2/64
+        ipv6_link_local: fe80::21c:73ff:fe2c:6fea/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer: null
+    routing_protocols:
+      ospfv2: null
+      ospfv3: null
+      ripv2: null
+      bgp:
+        local_asn: 65000
+        router_id: 5.5.5.5
+        neighbors:
+        - address: 10.3.5.1
+          transport_address_family: ipv4
+          remote_asn: 65001
+          configured_remote_asn: 65001
+          address_families:
+            ipv4:
+              configured_activation: true
+              observed_in_summary: true
+              state: Established
+              prefixes_received: 11
+              prefixes_advertised: 1
+              observed_advertised_networks:
+              - 203.0.113.0/30
+            ipv6:
+              configured_activation: null
+              observed_in_summary: false
+              state: null
+              prefixes_received: null
+              prefixes_advertised: null
+              observed_advertised_networks: null
+        - address: 10.4.5.1
+          transport_address_family: ipv4
+          remote_asn: 65001
+          configured_remote_asn: 65001
+          address_families:
+            ipv4:
+              configured_activation: true
+              observed_in_summary: true
+              state: Established
+              prefixes_received: 11
+              prefixes_advertised: 12
+              observed_advertised_networks:
+              - 10.0.10.0/24
+              - 10.0.20.0/24
+              - 10.1.11.0/30
+              - 10.1.33.0/30
+              - 10.12.12.0/30
+              - 10.2.22.0/30
+              - 10.2.44.0/30
+              - 10.3.33.0/30
+              - 10.3.4.0/30
+              - 10.33.44.0/30
+              - 10.4.44.0/30
+              - 203.0.113.0/30
+            ipv6:
+              configured_activation: null
+              observed_in_summary: false
+              state: null
+              prefixes_received: null
+              prefixes_advertised: null
+              observed_advertised_networks: null
+        - address: 2001:db8:3:5::1
+          transport_address_family: ipv6
+          remote_asn: 65001
+          configured_remote_asn: 65001
+          address_families:
+            ipv4:
+              configured_activation: null
+              observed_in_summary: false
+              state: null
+              prefixes_received: null
+              prefixes_advertised: null
+              observed_advertised_networks: null
+            ipv6:
+              configured_activation: true
+              observed_in_summary: true
+              state: Established
+              prefixes_received: 12
+              prefixes_advertised: 1
+              observed_advertised_networks:
+              - 2001:db8:203:113::/64
+        - address: 2001:db8:4:5::1
+          transport_address_family: ipv6
+          remote_asn: 65001
+          configured_remote_asn: 65001
+          address_families:
+            ipv4:
+              configured_activation: null
+              observed_in_summary: false
+              state: null
+              prefixes_received: null
+              prefixes_advertised: null
+              observed_advertised_networks: null
+            ipv6:
+              configured_activation: true
+              observed_in_summary: true
+              state: Active
+              prefixes_received: 0
+              prefixes_advertised: 0
+              observed_advertised_networks: []
+        configured_networks:
+          ipv4:
+          - prefix: 203.0.113.0/30
+            route_map: null
+          ipv6:
+          - prefix: 2001:db8:203:113::/64
+            route_map: null
+    redistribution: []
+    prefix_lists:
+      ipv4: {}
+      ipv6: {}
+    route_maps: {}
+    vlans:
+      1:
+        name: default
+        status: active
+        member_interfaces: []
+        svi: null
+    protocols_not_configured:
+    - ospfv2
+    - ospfv3
+    - ripv2
+    undetermined: []
+    sources:
+      commands_succeeded:
+      - show running-config
+      - show version | json
+      - show hostname | json
+      - show interfaces | json
+      - show ip interface | json
+      - show ipv6 interface | json
+      - show vlan | json
+      - show ip ospf | json
+      - show ip ospf interface | json
+      - show ipv6 ospf | json
+      - show ipv6 ospf interface | json
+      - show ip bgp summary | json
+      - show ipv6 bgp summary | json
+      - show version
+      - show interfaces status | json
+      - show lldp neighbors | json
+      - show ip bgp neighbors 10.3.5.1 advertised-routes | json
+      - show ip bgp neighbors 10.4.5.1 advertised-routes | json
+      - show ipv6 bgp peers 2001:db8:3:5::1 advertised-routes | json
+      - show ipv6 bgp peers 2001:db8:4:5::1 advertised-routes | json
+      commands_unavailable:
+      - show ip protocols
+      - show ip rip | json
+      - show ipv6 bgp neighbors 2001:db8:3:5::1 advertised-routes | json
+      - show ipv6 bgp neighbors 2001:db8:4:5::1 advertised-routes | json
+      - show bgp ipv6 unicast neighbors 2001:db8:3:5::1 advertised-routes | json
+      - show bgp ipv6 unicast neighbors 2001:db8:4:5::1 advertised-routes | json
+  S1:
+    hostname: S1
+    management_ip: 172.20.20.7
+    management_interface: Management0
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    topology:
+      node: S1
+      kind: ceos
+      image: ceos:4.36.2F
+    collected_at_utc: '2026-09-21T21:23:10.426865+00:00'
+    interfaces:
+      Ethernet1:
+        description: null
+        ipv4_addresses:
+        - 10.1.11.2/30
+        ipv6_addresses:
+        - 2001:db8:1:11::2/64
+        ipv6_link_local: fe80::a8c1:abff:fed7:f858/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: R1
+          interface: Ethernet2
+          local_topology_interface: eth1
+          peer_topology_interface: eth2
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Ethernet2:
+        description: null
+        ipv4_addresses: []
+        ipv6_addresses: []
+        ipv6_link_local: null
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: bridged
+        vrf: null
+        switchport:
+          mode: trunk
+          access_vlan: null
+          trunk_allowed_vlans:
+          - 10
+          - 20
+          - 30
+          - 900
+        peer:
+          device: S2
+          interface: Ethernet2
+          local_topology_interface: eth2
+          peer_topology_interface: eth2
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Ethernet3:
+        description: null
+        ipv4_addresses: []
+        ipv6_addresses: []
+        ipv6_link_local: null
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: bridged
+        vrf: null
+        switchport:
+          mode: access
+          access_vlan: 10
+          trunk_allowed_vlans: null
+        peer:
+          device: H1
+          interface: eth1
+          local_topology_interface: eth3
+          peer_topology_interface: eth1
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: false
+      Ethernet4:
+        description: null
+        ipv4_addresses: []
+        ipv6_addresses: []
+        ipv6_link_local: null
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: bridged
+        vrf: null
+        switchport:
+          mode: access
+          access_vlan: 20
+          trunk_allowed_vlans: null
+        peer:
+          device: H2
+          interface: eth1
+          local_topology_interface: eth4
+          peer_topology_interface: eth1
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: false
+      Management0:
+        description: null
+        ipv4_addresses:
+        - 172.20.20.7/24
+        ipv6_addresses:
+        - 3fff:172:20:20::7/64
+        ipv6_link_local: fe80::21c:73ff:fe52:e592/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer: null
+      Vlan1:
+        description: null
+        ipv4_addresses: []
+        ipv6_addresses: []
+        ipv6_link_local: null
+        shutdown: false
+        interface_status: notconnect
+        line_protocol_status: lowerLayerDown
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer: null
+      Vlan10:
+        description: GATEWAY-VLAN10
+        ipv4_addresses:
+        - 10.0.10.1/24
+        ipv6_addresses:
+        - 2001:db8:10::1/64
+        ipv6_link_local: fe80::21c:73ff:fee4:2fa/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer: null
+      Vlan20:
+        description: GATEWAY-VLAN20
+        ipv4_addresses:
+        - 10.0.20.1/24
+        ipv6_addresses:
+        - 2001:db8:20::1/64
+        ipv6_link_local: fe80::21c:73ff:fee4:2fa/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer: null
+      Vlan30:
+        description: GATEWAY-VLAN30
+        ipv4_addresses: []
+        ipv6_addresses:
+        - 2001:db8:30::1/64
+        ipv6_link_local: fe80::21c:73ff:fee4:2fa/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer: null
+      Vlan900:
+        description: L3-transit-to-S2
+        ipv4_addresses:
+        - 10.12.12.1/30
+        ipv6_addresses:
+        - 2001:db8:12:12::1/64
+        ipv6_link_local: fe80::21c:73ff:fee4:2fa/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer: null
+    routing_protocols:
+      ospfv2: null
+      ospfv3:
+        processes:
+        - process_id: 10
+          vrf: default
+          router_id: 11.11.11.11
+          areas:
+          - 0.0.0.0
+          networks: []
+          interfaces:
+          - name: Ethernet1
+            area: 0.0.0.0
+            passive: false
+            state: backupDr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          - name: Vlan10
+            area: 0.0.0.0
+            passive: true
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          - name: Vlan20
+            area: 0.0.0.0
+            passive: true
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          - name: Vlan30
+            area: 0.0.0.0
+            passive: true
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          - name: Vlan900
+            area: 0.0.0.0
+            passive: false
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          passive_interfaces:
+          - Vlan10
+          - Vlan20
+          - Vlan30
+          shutdown: false
+      ripv2:
+        version: null
+        shutdown: false
+        networks:
+        - 10.1.11.0/30
+        - 10.12.12.0/30
+        interfaces:
+        - name: Ethernet1
+          matched_configured_networks:
+          - 10.1.11.0/30
+          evidence: configured RIP network and show ip rip database
+          observed_in_operational_output: true
+        - name: Vlan900
+          matched_configured_networks:
+          - 10.12.12.0/30
+          evidence: configured RIP network and show ip rip database
+          observed_in_operational_output: true
+        observed_neighbors:
+        - address: 10.12.12.2
+          routes: 2
+          flags:
+          - ACCEPTED
+        - address: 10.1.11.1
+          routes: 6
+          flags:
+          - ACCEPTED
+          - QUERY
+      bgp: null
+    redistribution:
+    - source_protocol: connected
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: RIP-CONNECTED-S1
+      qualifiers: null
+      configuration_statement: redistribute connected route-map RIP-CONNECTED-S1
+    prefix_lists:
+      ipv4:
+        RIP-CONNECTED-S1:
+        - sequence: 10
+          action: permit
+          prefix: 10.0.10.0/24
+          ge: null
+          le: null
+        - sequence: 20
+          action: permit
+          prefix: 10.0.20.0/24
+          ge: null
+          le: null
+        - sequence: 30
+          action: permit
+          prefix: 10.1.11.0/30
+          ge: null
+          le: null
+        - sequence: 40
+          action: permit
+          prefix: 10.12.12.0/30
+          ge: null
+          le: null
+      ipv6: {}
+    route_maps:
+      RIP-CONNECTED-S1:
+      - sequence: 10
+        action: permit
+        match:
+        - ip address prefix-list RIP-CONNECTED-S1
+        set: []
+        other_statements: []
+    vlans:
+      1:
+        name: default
+        status: active
+        member_interfaces:
+        - Cpu
+        svi: Vlan1
+      10:
+        name: VLAN0010
+        status: active
+        member_interfaces:
+        - Cpu
+        - Ethernet2
+        - Ethernet3
+        svi: Vlan10
+      20:
+        name: VLAN0020
+        status: active
+        member_interfaces:
+        - Cpu
+        - Ethernet2
+        - Ethernet4
+        svi: Vlan20
+      30:
+        name: VLAN0030
+        status: active
+        member_interfaces:
+        - Cpu
+        - Ethernet2
+        svi: Vlan30
+      900:
+        name: TRANSIT-S1-S2
+        status: active
+        member_interfaces:
+        - Cpu
+        - Ethernet2
+        svi: Vlan900
+    protocols_not_configured:
+    - ospfv2
+    - bgp
+    undetermined:
+    - RIP is configured; its protocol version is not shown in running configuration or available operational output.
+    sources:
+      commands_succeeded:
+      - show running-config
+      - show version | json
+      - show hostname | json
+      - show interfaces | json
+      - show ip interface | json
+      - show ipv6 interface | json
+      - show vlan | json
+      - show ip ospf | json
+      - show ip ospf interface | json
+      - show ipv6 ospf | json
+      - show ipv6 ospf interface | json
+      - show version
+      - show interfaces status | json
+      - show lldp neighbors | json
+      - show ip rip neighbors
+      - show ip rip database
+      - show running-config all | section interface Vlan1
+      commands_unavailable:
+      - show ip protocols
+      - show ip rip | json
+      - show ip bgp summary | json
+      - show ipv6 bgp summary | json
+  S2:
+    hostname: S2
+    management_ip: 172.20.20.8
+    management_interface: Management0
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    topology:
+      node: S2
+      kind: ceos
+      image: ceos:4.36.2F
+    collected_at_utc: '2026-09-21T21:23:16.090812+00:00'
+    interfaces:
+      Ethernet1:
+        description: TO-R2
+        ipv4_addresses:
+        - 10.2.22.2/30
+        ipv6_addresses:
+        - 2001:db8:2:22::2/64
+        ipv6_link_local: fe80::a8c1:abff:fe2b:fa7d/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: R2
+          interface: Ethernet2
+          local_topology_interface: eth1
+          peer_topology_interface: eth2
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Ethernet2:
+        description: null
+        ipv4_addresses: []
+        ipv6_addresses: []
+        ipv6_link_local: null
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: bridged
+        vrf: null
+        switchport:
+          mode: trunk
+          access_vlan: null
+          trunk_allowed_vlans:
+          - 10
+          - 20
+          - 30
+          - 900
+        peer:
+          device: S1
+          interface: Ethernet2
+          local_topology_interface: eth2
+          peer_topology_interface: eth2
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Ethernet3:
+        description: null
+        ipv4_addresses: []
+        ipv6_addresses: []
+        ipv6_link_local: null
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: bridged
+        vrf: null
+        switchport:
+          mode: access
+          access_vlan: 10
+          trunk_allowed_vlans: null
+        peer:
+          device: H3
+          interface: eth1
+          local_topology_interface: eth3
+          peer_topology_interface: eth1
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: false
+      Ethernet4:
+        description: null
+        ipv4_addresses: []
+        ipv6_addresses: []
+        ipv6_link_local: null
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: bridged
+        vrf: null
+        switchport:
+          mode: access
+          access_vlan: 30
+          trunk_allowed_vlans: null
+        peer:
+          device: H4
+          interface: eth1
+          local_topology_interface: eth4
+          peer_topology_interface: eth1
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: false
+      Management0:
+        description: null
+        ipv4_addresses:
+        - 172.20.20.8/24
+        ipv6_addresses:
+        - 3fff:172:20:20::8/64
+        ipv6_link_local: fe80::21c:73ff:fee3:329/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer: null
+      Vlan900:
+        description: null
+        ipv4_addresses:
+        - 10.12.12.2/30
+        ipv6_addresses:
+        - 2001:db8:12:12::2/64
+        ipv6_link_local: fe80::21c:73ff:feb3:3ce0/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer: null
+    routing_protocols:
+      ospfv2: null
+      ospfv3:
+        processes:
+        - process_id: 10
+          vrf: default
+          router_id: 22.22.22.22
+          areas:
+          - 0.0.0.0
+          networks: []
+          interfaces:
+          - name: Ethernet1
+            area: 0.0.0.0
+            passive: false
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          - name: Vlan900
+            area: 0.0.0.0
+            passive: false
+            state: backupDr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          passive_interfaces: []
+          shutdown: false
+      ripv2:
+        version: null
+        shutdown: false
+        networks:
+        - 10.2.22.0/30
+        - 10.12.12.0/30
+        interfaces:
+        - name: Ethernet1
+          matched_configured_networks:
+          - 10.2.22.0/30
+          evidence: configured RIP network and show ip rip database
+          observed_in_operational_output: true
+        - name: Vlan900
+          matched_configured_networks:
+          - 10.12.12.0/30
+          evidence: configured RIP network and show ip rip database
+          observed_in_operational_output: true
+        observed_neighbors:
+        - address: 10.12.12.1
+          routes: 4
+          flags:
+          - ACCEPTED
+          - QUERY
+        - address: 10.2.22.1
+          routes: 6
+          flags:
+          - ACCEPTED
+          - QUERY
+      bgp: null
+    redistribution:
+    - source_protocol: connected
+      destination_protocol: rip
+      destination_process_id: null
+      route_map: RIP-CONNECTED-S2
+      qualifiers: null
+      configuration_statement: redistribute connected route-map RIP-CONNECTED-S2
+    prefix_lists:
+      ipv4:
+        RIP-CONNECTED-S2:
+        - sequence: 10
+          action: permit
+          prefix: 10.12.12.0/30
+          ge: null
+          le: null
+        - sequence: 20
+          action: permit
+          prefix: 10.2.22.0/30
+          ge: null
+          le: null
+      ipv6: {}
+    route_maps:
+      RIP-CONNECTED-S2:
+      - sequence: 10
+        action: permit
+        match:
+        - ip address prefix-list RIP-CONNECTED-S2
+        set: []
+        other_statements: []
+    vlans:
+      1:
+        name: default
+        status: active
+        member_interfaces: []
+        svi: null
+      10:
+        name: VLAN0010
+        status: active
+        member_interfaces:
+        - Ethernet2
+        - Ethernet3
+        svi: null
+      20:
+        name: VLAN0020
+        status: active
+        member_interfaces:
+        - Ethernet2
+        svi: null
+      30:
+        name: VLAN0030
+        status: active
+        member_interfaces:
+        - Ethernet2
+        - Ethernet4
+        svi: null
+      900:
+        name: VLAN0900
+        status: active
+        member_interfaces:
+        - Cpu
+        - Ethernet2
+        svi: Vlan900
+    protocols_not_configured:
+    - ospfv2
+    - bgp
+    undetermined:
+    - RIP is configured; its protocol version is not shown in running configuration or available operational output.
+    sources:
+      commands_succeeded:
+      - show running-config
+      - show version | json
+      - show hostname | json
+      - show interfaces | json
+      - show ip interface | json
+      - show ipv6 interface | json
+      - show vlan | json
+      - show ip ospf | json
+      - show ip ospf interface | json
+      - show ipv6 ospf | json
+      - show ipv6 ospf interface | json
+      - show version
+      - show interfaces status | json
+      - show lldp neighbors | json
+      - show ip rip neighbors
+      - show ip rip database
+      commands_unavailable:
+      - show ip protocols
+      - show ip rip | json
+      - show ip bgp summary | json
+      - show ipv6 bgp summary | json
+  S3:
+    hostname: S3
+    management_ip: 172.20.20.4
+    management_interface: Management0
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    topology:
+      node: S3
+      kind: ceos
+      image: ceos:4.36.2F
+    collected_at_utc: '2026-09-21T21:23:16.419791+00:00'
+    interfaces:
+      Ethernet1:
+        description: to-R3-eth2
+        ipv4_addresses:
+        - 10.3.33.2/30
+        ipv6_addresses:
+        - 2001:db8:3:33::2/64
+        ipv6_link_local: fe80::a8c1:abff:fe01:d4cb/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: R3
+          interface: Ethernet2
+          local_topology_interface: eth1
+          peer_topology_interface: eth2
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Ethernet2:
+        description: to-S4-Eth2
+        ipv4_addresses:
+        - 10.33.44.1/30
+        ipv6_addresses:
+        - 2001:db8:33:44::1/64
+        ipv6_link_local: fe80::a8c1:abff:fec2:e6c5/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: S4
+          interface: Ethernet2
+          local_topology_interface: eth2
+          peer_topology_interface: eth2
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Ethernet3:
+        description: TO-R1_ETH1
+        ipv4_addresses:
+        - 10.1.33.2/30
+        ipv6_addresses:
+        - 2001:db8:1:33::2/64
+        ipv6_link_local: fe80::a8c1:abff:fe81:7ea8/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: R1
+          interface: Ethernet1
+          local_topology_interface: eth3
+          peer_topology_interface: eth1
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Management0:
+        description: null
+        ipv4_addresses:
+        - 172.20.20.4/24
+        ipv6_addresses:
+        - 3fff:172:20:20::4/64
+        ipv6_link_local: fe80::21c:73ff:fe5d:e97e/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer: null
+    routing_protocols:
+      ospfv2:
+        processes:
+        - process_id: 10
+          vrf: default
+          router_id: 33.33.33.33
+          areas:
+          - 0.0.0.0
+          networks:
+          - prefix: 10.1.33.0/30
+            area: 0.0.0.0
+          - prefix: 10.3.33.0/30
+            area: 0.0.0.0
+          - prefix: 10.33.44.0/30
+            area: 0.0.0.0
+          interfaces:
+          - name: Ethernet1
+            area: 0.0.0.0
+            passive: false
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: false
+          - name: Ethernet2
+            area: 0.0.0.0
+            passive: false
+            state: backupDr
+            observed_in_operational_output: true
+            configured_on_interface: false
+          - name: Ethernet3
+            area: 0.0.0.0
+            passive: false
+            state: backupDr
+            observed_in_operational_output: true
+            configured_on_interface: false
+          passive_interfaces: []
+          shutdown: false
+      ospfv3:
+        processes:
+        - process_id: 10
+          vrf: default
+          router_id: 33.33.33.33
+          areas:
+          - 0.0.0.0
+          networks: []
+          interfaces:
+          - name: Ethernet1
+            area: 0.0.0.0
+            passive: false
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          - name: Ethernet2
+            area: 0.0.0.0
+            passive: false
+            state: backupDr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          - name: Ethernet3
+            area: 0.0.0.0
+            passive: false
+            state: backupDr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          passive_interfaces: []
+          shutdown: false
+      ripv2: null
+      bgp: null
+    redistribution: []
+    prefix_lists:
+      ipv4: {}
+      ipv6: {}
+    route_maps: {}
+    vlans:
+      1:
+        name: default
+        status: active
+        member_interfaces: []
+        svi: null
+    protocols_not_configured:
+    - ripv2
+    - bgp
+    undetermined: []
+    sources:
+      commands_succeeded:
+      - show running-config
+      - show version | json
+      - show hostname | json
+      - show interfaces | json
+      - show ip interface | json
+      - show ipv6 interface | json
+      - show vlan | json
+      - show ip ospf | json
+      - show ip ospf interface | json
+      - show ipv6 ospf | json
+      - show ipv6 ospf interface | json
+      - show version
+      - show interfaces status | json
+      - show lldp neighbors | json
+      commands_unavailable:
+      - show ip protocols
+      - show ip rip | json
+      - show ip bgp summary | json
+      - show ipv6 bgp summary | json
+  S4:
+    hostname: S4
+    management_ip: 172.20.20.10
+    management_interface: Management0
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F-49692818.4362F (engineering build)
+    topology:
+      node: S4
+      kind: ceos
+      image: ceos:4.36.2F
+    collected_at_utc: '2026-09-21T21:23:16.466228+00:00'
+    interfaces:
+      Ethernet1:
+        description: to-R4-eth2
+        ipv4_addresses:
+        - 10.4.44.2/30
+        ipv6_addresses:
+        - 2001:db8:4:44::2/64
+        ipv6_link_local: fe80::a8c1:abff:fe59:ce34/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: R4
+          interface: Ethernet2
+          local_topology_interface: eth1
+          peer_topology_interface: eth2
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Ethernet2:
+        description: to-S3-eth2
+        ipv4_addresses:
+        - 10.33.44.2/30
+        ipv6_addresses:
+        - 2001:db8:33:44::2/64
+        ipv6_link_local: fe80::a8c1:abff:fe09:3e7a/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: S3
+          interface: Ethernet2
+          local_topology_interface: eth2
+          peer_topology_interface: eth2
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Ethernet3:
+        description: to-R2-eth1
+        ipv4_addresses:
+        - 10.2.44.2/30
+        ipv6_addresses:
+        - 2001:db8:2:44::2/64
+        ipv6_link_local: fe80::a8c1:abff:fe84:cc67/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer:
+          device: R2
+          interface: Ethernet1
+          local_topology_interface: eth3
+          peer_topology_interface: eth1
+          source: nettopo.clab.yml
+          interface_mapping: ethN to observed EthernetN for cEOS; literal endpoint for Linux
+          confirmed_by_lldp: true
+      Management0:
+        description: null
+        ipv4_addresses:
+        - 172.20.20.10/24
+        ipv6_addresses:
+        - 3fff:172:20:20::a/64
+        ipv6_link_local: fe80::21c:73ff:fe26:8e2a/64
+        shutdown: false
+        interface_status: connected
+        line_protocol_status: up
+        forwarding_model: routed
+        vrf: default
+        switchport: null
+        peer: null
+    routing_protocols:
+      ospfv2:
+        processes:
+        - process_id: 10
+          vrf: default
+          router_id: 44.44.44.44
+          areas:
+          - 0.0.0.0
+          networks:
+          - prefix: 10.2.44.0/30
+            area: 0.0.0.0
+          - prefix: 10.4.44.0/30
+            area: 0.0.0.0
+          - prefix: 10.33.44.0/30
+            area: 0.0.0.0
+          interfaces:
+          - name: Ethernet1
+            area: 0.0.0.0
+            passive: false
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: false
+          - name: Ethernet2
+            area: 0.0.0.0
+            passive: false
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: false
+          - name: Ethernet3
+            area: 0.0.0.0
+            passive: false
+            state: backupDr
+            observed_in_operational_output: true
+            configured_on_interface: false
+          passive_interfaces: []
+          shutdown: false
+      ospfv3:
+        processes:
+        - process_id: 10
+          vrf: default
+          router_id: 44.44.44.44
+          areas:
+          - 0.0.0.0
+          networks: []
+          interfaces:
+          - name: Ethernet1
+            area: 0.0.0.0
+            passive: false
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          - name: Ethernet2
+            area: 0.0.0.0
+            passive: false
+            state: dr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          - name: Ethernet3
+            area: 0.0.0.0
+            passive: false
+            state: backupDr
+            observed_in_operational_output: true
+            configured_on_interface: true
+          passive_interfaces: []
+          shutdown: false
+      ripv2: null
+      bgp: null
+    redistribution: []
+    prefix_lists:
+      ipv4: {}
+      ipv6: {}
+    route_maps: {}
+    vlans:
+      1:
+        name: default
+        status: active
+        member_interfaces: []
+        svi: null
+    protocols_not_configured:
+    - ripv2
+    - bgp
+    undetermined: []
+    sources:
+      commands_succeeded:
+      - show running-config
+      - show version | json
+      - show hostname | json
+      - show interfaces | json
+      - show ip interface | json
+      - show ipv6 interface | json
+      - show vlan | json
+      - show ip ospf | json
+      - show ip ospf interface | json
+      - show ipv6 ospf | json
+      - show ipv6 ospf interface | json
+      - show version
+      - show interfaces status | json
+      - show lldp neighbors | json
+      commands_unavailable:
+      - show ip protocols
+      - show ip rip | json
+      - show ip bgp summary | json
+      - show ipv6 bgp summary | json

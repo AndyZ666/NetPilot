@@ -1706,60 +1706,6 @@ devices:
         ipv6: {}
       route_maps: {}
     vlans: {}
-  Test-S4:
-    hostname: Test-S4
-    role: access_switch
-    vendor: Arista
-    platform: cEOSLab
-    management:
-      ipv4: 172.20.20.101
-    template: templates/arista_ceos.j2
-    interfaces: {}
-    routing:
-      ospfv2:
-        enabled: false
-      ospfv3:
-        enabled: false
-      ripv2:
-        enabled: false
-      bgp:
-        enabled: false
-    redistribution: []
-    policy:
-      prefix_lists:
-        ipv4: {}
-        ipv6: {}
-      route_maps: {}
-    vlans: {}
-  Test-R11:
-    hostname: Test-R11
-    role: border_router
-    vendor: Arista
-    platform: cEOSLab
-    management:
-      ipv4: 172.20.20.60
-    template: templates/arista_ceos.j2
-    interfaces: {}
-    routing:
-      ospfv2:
-        enabled: true
-        process_id: 100
-        router_id: 20.20.20.20
-        passive_interfaces: []
-        networks: []
-      ospfv3:
-        enabled: false
-      ripv2:
-        enabled: false
-      bgp:
-        enabled: false
-    redistribution: []
-    policy:
-      prefix_lists:
-        ipv4: {}
-        ipv6: {}
-      route_maps: {}
-    vlans: {}
 endpoints:
   H1:
     type: host

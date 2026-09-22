@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="inventory-page config-management-page">
+  <div class="page-heading">
+    <div><span class="eyebrow">BUILD FROM YOUR SOURCE OF TRUTH</span><h1>Configuration</h1><p>Turn inventory details into a readable device configuration.</p></div>
+    <span class="inventory-source"><i class="bi bi-file-earmark-code" aria-hidden="true"></i> Desired configuration</span>
+  </div>
+
+  <div class="inventory-intro surface">
+    <span class="inventory-intro-icon"><i class="bi bi-sliders2" aria-hidden="true"></i></span>
+    <div><h2>Your network, as intended</h2><p>NetPilot builds this configuration from the Source of Truth and the assigned Jinja2 template. Generating a configuration does not change the live device.</p></div>
+  </div>
+
+  {% if not inventory_available %}
+  <div class="inventory-alert" role="status"><i class="bi bi-info-circle" aria-hidden="true"></i><div><strong>Inventory information is unavailable</strong><p>The central inventory could not be loaded. Configuration generation will be available when the inventory can be read.</p></div></div>
+  {% endif %}
+  {% if error %}
+  <div class="workspace-notice notice-error" role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><div><strong>Unable to complete this request</strong><p>{{ error }}</p></div></div>
+  {% endif %}
+  {% if action_results %}
+  <section class="config-results" aria-label="Configuration generation results" aria-live="polite">
+    {% for result in action_results %}
+    <div class="config-result {{ 'is-success' if result.success else 'is-error' }}" role="{{ 'status' if result.success else 'alert' }}"><i class="bi bi-{{ 'check-circle' if result.success else 'exclamation-circle' }}" aria-hidden="true"></i><div><strong>{{ result.hostname }}</strong><p>{{ result.message }}</p>{% if result.filename %}<span class="config-file-label">{{ result.filename }}</span>{% endif %}</div></div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <div class="config-workspace">
+    <aside class="config-controls" aria-label="Configuration options">
+      <section class="inventory-panel surface" aria-labelledby="configuration-device-title">
+        <div class="inventory-panel-heading"><div><h2 id="configuration-device-title">Choose a device</h2><p>Use a device registered in your inventory.</p></div></div>
+        <div class="config-panel-body">
+          <form class="config-selector" action="{{ url_for('configuration') }}" method="get">
+            <div class="config-field"><label for="configuration-hostname">Device</label><select class="form-select" name="hostname" id="configuration-hostname" required{% if not devices or not inventory_available %} disabled{% endif %}><option value="">Select a device</option>{% for device in devices %}<option value="{{ device.hostname }}"{% if selected_hostname == device.hostname %} selected{% endif %}>{{ device.hostname }}{% if device.management_ip %} · {{ device.management_ip }}{% endif %}</option>{% endfor %}</select></div>
+            <button class="btn btn-outline-primary" type="submit"{% if not devices or not inventory_available %} disabled{% endif %}>Select Device <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+          </form>
+
+          {% if selected_device %}
+          <dl class="config-selection-meta">
+            <div><dt>Selected device</dt><dd><a href="{{ url_for('device_detail', hostname=selected_device.hostname) }}">{{ selected_device.hostname }}</a></dd></div>
+            <div><dt>Management IP</dt><dd>{{ selected_device.management_ip or 'Not specified' }}</dd></div>
+            <div><dt>Assigned template</dt><dd><span class="template-value"><i class="bi bi-file-earmark-code" aria-hidden="true"></i>{{ selected_device.template or 'Not specified' }}</span></dd></div>
+          </dl>
+          {% else %}
+          <p class="config-notice">{{ 'No devices are currently registered in the inventory.' if inventory_available and not devices else 'Select a device to see its assigned template and generate a configuration.' }}</p>
+          {% endif %}
+
+          <form class="config-actions" action="{{ url_for('configuration') }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="generate">
+            <input type="hidden" name="hostname" value="{{ selected_hostname or '' }}">
+            <button class="btn btn-primary" type="submit"{% if not selected_device or not selected_device.template or not inventory_available %} disabled{% endif %}><i class="bi bi-file-earmark-code" aria-hidden="true"></i> Generate Configuration</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="inventory-panel surface" aria-labelledby="generate-all-title">
+        <div class="inventory-panel-heading"><div><h2 id="generate-all-title">Generate for every device</h2><p>Build desired configurations for all devices currently registered in the Source of Truth.</p></div></div>
+        <form class="config-panel-body config-secondary-action" action="{{ url_for('configuration') }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="action" value="generate_all">
+          <input type="hidden" name="hostname" value="{{ selected_hostname or '' }}">
+          <button class="btn btn-outline-primary" type="submit"{% if not devices or not inventory_available %} disabled{% endif %}><i class="bi bi-collection" aria-hidden="true"></i> Generate All Configurations</button>
+        </form>
+      </section>
+    </aside>
+
+    <section class="config-viewer surface" aria-labelledby="desired-configuration-title">
+      <div class="config-viewer-header"><div><span class="eyebrow">SOURCE OF TRUTH + TEMPLATE</span><h2 id="desired-configuration-title">Desired Configuration</h2><p>The configuration built from your inventory and the device’s assigned template.</p></div>{% if generated_content is not none and generated_filename %}<span class="config-file-label"><i class="bi bi-file-earmark-code" aria-hidden="true"></i> {{ generated_filename }}</span>{% endif %}</div>
+      {% if generated_content is not none %}
+      {% if generated_redacted %}<p class="config-notice"><i class="bi bi-shield-lock" aria-hidden="true"></i> Sensitive configuration values are hidden in this viewer.</p>{% endif %}
+      <pre class="config-code" tabindex="0" aria-label="Desired configuration{% if selected_device %} for {{ selected_device.hostname }}{% endif %}"><code>{{ generated_content }}</code></pre>
+      {% else %}
+      <div class="inventory-empty"><span class="inventory-empty-icon"><i class="bi bi-file-earmark-code" aria-hidden="true"></i></span><h3>{{ 'Ready to generate' if selected_device else 'Choose a device to get started' }}</h3><p>{% if selected_device %}Generate a configuration for {{ selected_device.hostname }} to review the result here.{% else %}Select a registered device, review its template, and generate its desired configuration.{% endif %}</p></div>
+      {% endif %}
+    </section>
+  </div>
+
+  <div class="inventory-help config-explanation"><i class="bi bi-info-circle" aria-hidden="true"></i><p><strong>Desired Configuration</strong> describes what is built from the Source of Truth and a template. <strong>Golden Configuration</strong> is a saved copy of the live device’s running configuration. <a href="{{ url_for('golden_configs') }}">View Golden Configs <i class="bi bi-arrow-right" aria-hidden="true"></i></a></p></div>
+</div>
+{% endblock %}

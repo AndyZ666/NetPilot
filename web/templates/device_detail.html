@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% macro missing(value) %}{{ value if value is not none and value != '' else 'Not specified' }}{% endmacro %}
+{% macro addresses(values) %}{% for address in values %}<span class="address-line">{{ address }}</span>{% else %}<span class="inventory-muted">Not specified</span>{% endfor %}{% endmacro %}
+
+{% block content %}
+<div class="inventory-page device-detail-page">
+  <a class="inventory-back" href="{{ url_for('devices') }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to Devices</a>
+  {% if not device %}
+  <section class="placeholder-panel surface" aria-labelledby="missing-device-title"><span class="placeholder-icon"><i class="bi bi-search" aria-hidden="true"></i></span><span class="eyebrow">DEVICE INVENTORY</span><h1 id="missing-device-title">{{ 'Device not found' if inventory_available else 'Inventory unavailable' }}</h1><p>{% if inventory_available %}No device named <strong>{{ requested_hostname }}</strong> is registered in the current inventory.{% else %}The central inventory could not be loaded, so this device's details are unavailable.{% endif %}</p><p class="placeholder-detail">Return to Devices to see the available inventory records.</p><a class="btn btn-primary" href="{{ url_for('devices') }}">View Devices <i class="bi bi-arrow-right" aria-hidden="true"></i></a></section>
+  {% else %}
+  <div class="page-heading detail-page-heading">
+    <div class="device-title-group"><span class="detail-device-icon {% if device.kind == 'switch' %}icon-violet{% else %}icon-blue{% endif %}"><i class="bi bi-{{ 'router' if device.kind == 'router' else 'ethernet' if device.kind == 'switch' else 'hdd-network' }}" aria-hidden="true"></i></span><div><span class="eyebrow">DEVICE DETAILS</span><h1>{{ device.hostname }}</h1><p>{{ device.role or 'Network equipment' }}{% if device.vendor %} <span class="detail-title-divider">/</span> {{ device.vendor }}{% endif %}{% if device.platform %} {{ device.platform }}{% endif %}</p></div></div>
+    <span class="inventory-managed"><i class="bi bi-bookmark-check" aria-hidden="true"></i> Managed</span>
+  </div>
+  <div class="detail-source-note"><i class="bi bi-database" aria-hidden="true"></i> Information from your Network Source of Truth <span>·</span> Live device status is not checked</div>
+
+  <div class="device-info-grid">
+    <section class="detail-card surface" aria-labelledby="device-information-title">
+      <div class="detail-card-heading"><span class="detail-section-icon icon-blue"><i class="bi bi-hdd-network" aria-hidden="true"></i></span><div><h2 id="device-information-title">Device Information</h2><p>The identity and purpose of this equipment.</p></div></div>
+      <dl class="device-facts"><div><dt>Hostname</dt><dd>{{ device.hostname }}</dd></div><div><dt>Role</dt><dd><span class="inventory-tag role-tag">{{ device.role or 'Not specified' }}</span></dd></div><div><dt>Vendor</dt><dd>{{ device.vendor or 'Not specified' }}</dd></div><div><dt>Platform</dt><dd>{{ device.platform or 'Not specified' }}</dd></div></dl>
+    </section>
+    <section class="detail-card surface" aria-labelledby="management-title">
+      <div class="detail-card-heading"><span class="detail-section-icon icon-cyan"><i class="bi bi-sliders2" aria-hidden="true"></i></span><div><h2 id="management-title">Management</h2><p>How NetPilot identifies and configures this device.</p></div></div>
+      <dl class="management-facts"><div><dt>Management IP</dt><dd class="inventory-address">{{ device.management_ip or device.management_ipv6 or 'Not specified' }}</dd><dd class="fact-help">Address NetPilot uses to manage this device.</dd></div>{% if device.management_ip and device.management_ipv6 %}<div><dt>Management IPv6</dt><dd class="inventory-address">{{ device.management_ipv6 }}</dd></div>{% endif %}<div><dt>Template</dt><dd class="template-value">{{ device.template or 'Not specified' }}</dd><dd class="fact-help">Configuration blueprint used when NetPilot generates this device's configuration.</dd></div>{% if device.management_interface %}<div class="management-interface"><dt>Management interface</dt><dd>{{ device.management_interface }}</dd></div>{% endif %}</dl>
+    </section>
+  </div>
+
+  <section class="detail-section" aria-labelledby="interfaces-title">
+    <div class="section-heading"><div><h2 id="interfaces-title">Interfaces <span class="inventory-count">{{ device.interfaces | length }}</span></h2><p>Connection points and network addresses recorded for this device.</p></div><span class="section-note"><i class="bi bi-ethernet" aria-hidden="true"></i> Configured connections</span></div>
+    <div class="surface detail-table-panel">
+      {% if device.interfaces %}
+      <div class="detail-table-scroll" tabindex="0" role="region" aria-label="Interfaces table; scroll horizontally on smaller screens">
+        <table class="detail-table interface-table"><caption class="visually-hidden">Interface addresses, neighboring equipment, and VLAN assignments from the inventory.</caption><thead><tr><th scope="col">Interface</th><th scope="col">IPv4 address</th><th scope="col">IPv6 address</th><th scope="col">Connected to</th><th scope="col">VLAN / network group</th></tr></thead><tbody>
+          {% for interface in device.interfaces %}
+          <tr><th scope="row"><span class="interface-name">{{ interface.name }}</span>{% if interface.description %}<span class="interface-description">{{ interface.description }}</span>{% endif %}</th><td>{{ addresses(interface.ipv4) }}</td><td>{{ addresses(interface.ipv6) }}</td><td>{% if interface.peer_device or interface.peer_interface %}<span class="interface-peer"><i class="bi bi-diagram-2" aria-hidden="true"></i>{{ interface.peer_device or 'Device not specified' }}</span>{% if interface.peer_interface %}<span class="interface-description">{{ interface.peer_interface }}</span>{% endif %}{% else %}<span class="inventory-muted">Not specified</span>{% endif %}</td><td>{% for vlan in interface.vlans %}<span class="vlan-label">{{ vlan }}</span>{% else %}<span class="inventory-muted">Not specified</span>{% endfor %}</td></tr>
+          {% endfor %}
+        </tbody></table>
+      </div>
+      {% else %}<div class="detail-empty"><i class="bi bi-ethernet" aria-hidden="true"></i><p>No interface information is recorded for this device.</p></div>{% endif %}
+    </div>
+    {% if device.vlans %}
+    <details class="policy-panel surface device-vlans-panel"><summary><span class="policy-summary-icon icon-cyan"><i class="bi bi-diagram-3" aria-hidden="true"></i></span><span class="policy-summary-copy"><strong>VLANs / network groups <span class="inventory-count">{{ device.vlans | length }}</span></strong><small>Groups that keep related network traffic together.</small></span><i class="bi bi-chevron-down policy-chevron" aria-hidden="true"></i></summary><div class="policy-panel-content"><div class="detail-table-scroll" tabindex="0" role="region" aria-label="Configured VLANs"><table class="detail-table"><thead><tr><th scope="col">VLAN ID</th><th scope="col">Name</th><th scope="col">Member interfaces</th><th scope="col">Gateway interface</th></tr></thead><tbody>{% for vlan in device.vlans %}<tr><td>{{ vlan.id }}</td><td>{{ vlan.name or 'Not specified' }}</td><td>{% for interface in vlan.interfaces %}<span class="address-line">{{ interface }}</span>{% else %}<span class="inventory-muted">Not specified</span>{% endfor %}</td><td>{{ vlan.svi or 'Not specified' }}</td></tr>{% endfor %}</tbody></table></div></div></details>
+    {% endif %}
+  </section>
+
+  <section class="detail-section" aria-labelledby="routing-title">
+    <div class="section-heading"><div><h2 id="routing-title">Routing</h2><p>Routing protocols allow network devices to exchange information about how traffic should reach other networks.</p></div></div>
+    <div class="routing-card-grid">
+      {% for protocol in device.protocols %}
+      <article class="routing-card surface"><div class="routing-card-title"><span class="routing-protocol-symbol"><i class="bi bi-{{ 'globe2' if protocol.name == 'bgp' else 'signpost-split' }}" aria-hidden="true"></i></span><h3>{{ protocol.label }}</h3></div><span class="inventory-tag {{ 'protocol-enabled' if protocol.enabled == true else 'protocol-disabled' }}">{{ 'Enabled' if protocol.enabled == true else 'Not enabled' if protocol.enabled == false else 'Not specified' }}</span><p>{% if protocol.name == 'ospfv2' %}Shares IPv4 routes within your network.{% elif protocol.name == 'ospfv3' %}Shares routes using OSPF version 3.{% elif protocol.name in ['rip', 'ripv2'] %}Exchanges routes with neighboring equipment.{% elif protocol.name == 'bgp' %}Exchanges routes between network groups.{% endif %}</p></article>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% if device.bgp %}
+  <section class="detail-section" aria-labelledby="bgp-title">
+    <div class="section-heading"><div><h2 id="bgp-title">BGP connections</h2><p>Configured neighbors used to exchange routes between networks.</p></div><span class="section-note">Inventory configuration</span></div>
+    <div class="surface bgp-panel">
+      <div class="bgp-overview"><div><span class="eyebrow">AUTONOMOUS SYSTEM NUMBER</span><strong>{{ missing(device.bgp.asn) }}</strong><p>Identifies the network this device belongs to in BGP.</p></div>{% if device.bgp.router_id %}<div class="bgp-router-id"><span>Router ID</span><strong>{{ device.bgp.router_id }}</strong></div>{% endif %}</div>
+      {% if device.bgp.neighbors %}<div class="detail-table-scroll" tabindex="0" role="region" aria-label="BGP neighbors"><table class="detail-table"><caption class="visually-hidden">Configured BGP neighbor addresses and remote autonomous systems; live sessions are not checked.</caption><thead><tr><th scope="col">Neighbor address</th><th scope="col">Remote ASN</th><th scope="col">Address family</th></tr></thead><tbody>{% for neighbor in device.bgp.neighbors %}<tr><th scope="row"><span class="inventory-address">{{ neighbor.address or 'Not specified' }}</span></th><td>{{ missing(neighbor.remote_asn) }}</td><td><span class="inventory-tag platform-tag">{{ neighbor.address_family or 'Not specified' }}</span></td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="detail-empty compact-empty"><p>No BGP neighbors are recorded in the inventory.</p></div>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if device.redistribution or device.prefix_lists or device.route_maps %}
+  <section class="detail-section" aria-labelledby="policy-title">
+    <div class="section-heading"><div><span class="eyebrow">ADVANCED DETAILS</span><h2 id="policy-title">Routing Policy</h2><p>Rules that control which routes are shared. Expand a section to explore its configuration.</p></div></div>
+    <div class="routing-policy-list">
+      {% if device.redistribution %}
+      <details class="policy-panel surface"><summary><span class="policy-summary-icon icon-blue"><i class="bi bi-arrow-left-right" aria-hidden="true"></i></span><span class="policy-summary-copy"><strong>Redistribution <span class="inventory-count">{{ device.redistribution | length }}</span></strong><small>How routes move from one routing protocol to another.</small></span><i class="bi bi-chevron-down policy-chevron" aria-hidden="true"></i></summary><div class="policy-panel-content"><div class="detail-table-scroll" tabindex="0" role="region" aria-label="Route redistribution rules"><table class="detail-table"><thead><tr><th scope="col">From</th><th scope="col">To</th><th scope="col">Route map</th><th scope="col">Conditions</th></tr></thead><tbody>{% for rule in device.redistribution %}<tr><td>{{ rule.source or 'Not specified' }}</td><td>{{ rule.destination or 'Not specified' }}</td><td><span class="policy-code">{{ rule.route_map or 'Not specified' }}</span></td><td>{{ rule.qualifiers or 'Not specified' }}</td></tr>{% endfor %}</tbody></table></div></div></details>
+      {% endif %}
+      {% if device.prefix_lists %}
+      <details class="policy-panel surface"><summary><span class="policy-summary-icon icon-cyan"><i class="bi bi-list-check" aria-hidden="true"></i></span><span class="policy-summary-copy"><strong>Prefix lists <span class="inventory-count">{{ device.prefix_lists | length }}</span></strong><small>Network address ranges used to select routes.</small></span><i class="bi bi-chevron-down policy-chevron" aria-hidden="true"></i></summary><div class="policy-panel-content">{% for prefix_list in device.prefix_lists %}<div class="policy-group"><h3>{{ prefix_list.name }} {% if prefix_list.family %}<span class="inventory-tag platform-tag">{{ prefix_list.family }}</span>{% endif %}</h3>{% if prefix_list.entries %}<div class="detail-table-scroll" tabindex="0" role="region" aria-label="Entries for prefix list {{ prefix_list.name }}"><table class="detail-table"><thead><tr><th scope="col">Sequence</th><th scope="col">Action</th><th scope="col">Network prefix</th><th scope="col">Min. prefix length</th><th scope="col">Max. prefix length</th></tr></thead><tbody>{% for entry in prefix_list.entries %}<tr><td>{{ missing(entry.sequence) }}</td><td><span class="inventory-tag platform-tag">{{ missing(entry.action) }}</span></td><td class="inventory-address">{{ missing(entry.prefix) }}</td><td>{{ missing(entry.ge) }}</td><td>{{ missing(entry.le) }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="policy-empty">No entries recorded.</p>{% endif %}</div>{% endfor %}</div></details>
+      {% endif %}
+      {% if device.route_maps %}
+      <details class="policy-panel surface"><summary><span class="policy-summary-icon icon-violet"><i class="bi bi-signpost-2" aria-hidden="true"></i></span><span class="policy-summary-copy"><strong>Route maps <span class="inventory-count">{{ device.route_maps | length }}</span></strong><small>Conditions and actions applied when sharing routes.</small></span><i class="bi bi-chevron-down policy-chevron" aria-hidden="true"></i></summary><div class="policy-panel-content">{% for route_map in device.route_maps %}<div class="policy-group"><h3>{{ route_map.name }}</h3>{% if route_map.entries %}<div class="detail-table-scroll" tabindex="0" role="region" aria-label="Entries for route map {{ route_map.name }}"><table class="detail-table"><thead><tr><th scope="col">Sequence</th><th scope="col">Action</th><th scope="col">Match conditions</th><th scope="col">Set actions</th></tr></thead><tbody>{% for entry in route_map.entries %}<tr><td>{{ missing(entry.sequence) }}</td><td><span class="inventory-tag platform-tag">{{ missing(entry.action) }}</span></td><td>{% for condition in entry.match %}<span class="policy-code address-line">{{ condition }}</span>{% else %}<span class="inventory-muted">None recorded</span>{% endfor %}</td><td>{% for action in entry.set %}<span class="policy-code address-line">{{ action }}</span>{% else %}<span class="inventory-muted">None recorded</span>{% endfor %}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="policy-empty">No entries recorded.</p>{% endif %}</div>{% endfor %}</div></details>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+  <div class="inventory-help"><i class="bi bi-info-circle" aria-hidden="true"></i><p>“Not specified” means the value is not recorded in the available inventory data. No live device information is requested on this page.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

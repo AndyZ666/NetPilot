@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% macro feedback(name) %}{% if errors.get(name) %}<div class="invalid-feedback" id="{{ name }}-error">{{ errors[name] }}</div>{% endif %}{% endmacro %}
+{% macro routing_input(name, label, placeholder, help_text, numeric=false) %}
+<div class="add-field"><label for="{{ name }}">{{ label }}</label><input class="form-control{% if errors.get(name) %} is-invalid{% endif %}" id="{{ name }}" name="{{ name }}" value="{{ form.get(name, '') }}" placeholder="{{ placeholder }}" type="text"{% if numeric %} inputmode="numeric"{% endif %} autocomplete="off" aria-describedby="{{ name }}-help{% if errors.get(name) %} {{ name }}-error{% endif %}"{% if errors.get(name) %} aria-invalid="true"{% endif %} data-routing-required><div class="form-text" id="{{ name }}-help">{{ help_text }}</div>{{ feedback(name) }}</div>
+{% endmacro %}
+
+{% block content %}
+<div class="inventory-page add-device-page">
+  <div class="page-heading"><div><span class="eyebrow">GROW YOUR WORKSPACE</span><h1>Add Device</h1><p>Register network equipment in the NetPilot Network Source of Truth.</p></div><span class="inventory-source"><i class="bi bi-plus-circle" aria-hidden="true"></i> Inventory registration</span></div>
+
+  {% if errors %}
+  <div class="add-error-summary" id="form-errors" role="alert" tabindex="-1"><span class="add-alert-icon"><i class="bi bi-exclamation-circle" aria-hidden="true"></i></span><div><h2>We couldn’t add the device yet</h2><p>Your entries are saved below. Review the highlighted information and try again.</p><ul>{% for field, message in errors.items() %}<li>{% if field not in ['_form', 'csrf_token'] %}<a href="#{{ field if field != 'protocols' else 'routing-choices' }}">{{ message }}</a>{% else %}{{ message }}{% endif %}</li>{% endfor %}</ul></div></div>
+  {% endif %}
+  {% if not inventory_available %}
+  <div class="inventory-alert" role="status"><i class="bi bi-info-circle" aria-hidden="true"></i><div><strong>Registration is temporarily unavailable</strong><p>The current inventory could not be safely loaded. Your existing data will remain unchanged.</p></div></div>
+  {% endif %}
+
+  <div class="add-device-layout">
+    <form class="add-device-form" action="{{ url_for('add_device') }}" method="post" id="add-device-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+      <section class="add-form-section surface" aria-labelledby="identity-heading">
+        <div class="add-section-heading"><span class="add-section-number">01</span><div><h2 id="identity-heading">Device identity</h2><p>Give this device a name and a purpose.</p></div><span class="add-required-note">* Required</span></div>
+        <div class="add-field-grid">
+          <div class="add-field"><label for="hostname">Hostname <span aria-hidden="true">*</span></label><input class="form-control{% if errors.get('hostname') %} is-invalid{% endif %}" id="hostname" name="hostname" type="text" value="{{ form.get('hostname', '') }}" placeholder="e.g. R6" maxlength="63" autocomplete="off" spellcheck="false" required aria-describedby="hostname-help{% if errors.get('hostname') %} hostname-error{% endif %}"{% if errors.get('hostname') %} aria-invalid="true"{% endif %}><div class="form-text" id="hostname-help">A unique name used to identify this device in NetPilot.</div>{{ feedback('hostname') }}</div>
+          <div class="add-field"><label for="role">Role <span aria-hidden="true">*</span></label><select class="form-select{% if errors.get('role') %} is-invalid{% endif %}" id="role" name="role" required aria-describedby="role-help{% if errors.get('role') %} role-error{% endif %}"{% if errors.get('role') %} aria-invalid="true"{% endif %}><option value="">Choose a device role</option>{% for value, label in role_choices %}<option value="{{ value }}"{% if form.get('role') == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select><div class="form-text" id="role-help">Choose the router or switch role that matches its purpose.</div>{{ feedback('role') }}</div>
+        </div>
+      </section>
+
+      <section class="add-form-section surface" aria-labelledby="platform-heading">
+        <div class="add-section-heading"><span class="add-section-number">02</span><div><h2 id="platform-heading">Vendor &amp; platform</h2><p>Use a platform supported by this workspace.</p></div><span class="add-supported-badge">Supported</span></div>
+        <div class="add-field-grid">
+          <div class="add-field"><label for="vendor">Vendor <span aria-hidden="true">*</span></label><select class="form-select{% if errors.get('vendor') %} is-invalid{% endif %}" id="vendor" name="vendor" required aria-describedby="vendor-help{% if errors.get('vendor') %} vendor-error{% endif %}"{% if errors.get('vendor') %} aria-invalid="true"{% endif %}>{% for item in supported_templates %}<option value="{{ item.vendor }}"{% if form.get('vendor') == item.vendor %} selected{% endif %}>{{ item.vendor_label }}</option>{% endfor %}</select><div class="form-text" id="vendor-help">The manufacturer or network operating system family.</div>{{ feedback('vendor') }}</div>
+          <div class="add-field"><label for="platform">Platform <span aria-hidden="true">*</span></label><select class="form-select{% if errors.get('platform') %} is-invalid{% endif %}" id="platform" name="platform" required aria-describedby="platform-help{% if errors.get('platform') %} platform-error{% endif %}"{% if errors.get('platform') %} aria-invalid="true"{% endif %}>{% for item in supported_templates %}<option value="{{ item.platform }}"{% if form.get('platform') == item.platform %} selected{% endif %}>{{ item.platform_label }}</option>{% endfor %}</select><div class="form-text" id="platform-help">The network operating system running on this device.</div>{{ feedback('platform') }}</div>
+        </div>
+      </section>
+
+      <section class="add-form-section surface" aria-labelledby="management-heading">
+        <div class="add-section-heading"><span class="add-section-number">03</span><div><h2 id="management-heading">Management</h2><p>Tell NetPilot where this device is managed.</p></div></div>
+        <div class="add-field"><label for="management_ip">Management IP <span aria-hidden="true">*</span></label><div class="add-input-with-icon"><i class="bi bi-hdd-network" aria-hidden="true"></i><input class="form-control{% if errors.get('management_ip') %} is-invalid{% endif %}" id="management_ip" name="management_ip" type="text" value="{{ form.get('management_ip', '') }}" placeholder="e.g. 172.20.20.100" inputmode="decimal" autocomplete="off" spellcheck="false" required aria-describedby="management_ip-help{% if errors.get('management_ip') %} management_ip-error{% endif %}"{% if errors.get('management_ip') %} aria-invalid="true"{% endif %}></div><div class="form-text" id="management_ip-help">The address NetPilot uses to connect to and manage this device. Enter a unique IPv4 address.</div>{{ feedback('management_ip') }}</div>
+        <div class="add-inline-note"><i class="bi bi-info-circle" aria-hidden="true"></i> This step registers the address. It does not test device connectivity.</div>
+      </section>
+
+      <section class="add-form-section surface" aria-labelledby="routing-heading">
+        <div class="add-section-heading"><span class="add-section-number">04</span><div><h2 id="routing-heading">Routing protocols</h2><p>Routing protocols allow devices to learn how to reach other networks.</p></div><span class="add-optional-label">Optional</span></div>
+        <fieldset id="routing-choices" class="add-routing-fieldset"{% if errors.get('protocols') %} aria-describedby="protocols-error"{% endif %}>
+          <legend class="visually-hidden">Select routing protocols to configure</legend>
+          <div class="add-protocol-grid">
+            {% set protocol_choices = [('ospfv2', 'OSPFv2', 'IPv4 routing within your network', 'diagram-3'), ('ospfv3', 'OSPFv3', 'OSPF version 3 routing', 'diagram-3'), ('ripv2', 'RIP', 'Simple route sharing with neighbors', 'signpost-split'), ('bgp', 'BGP', 'Route sharing between networks', 'globe2')] %}
+            {% for value, label, description, icon in protocol_choices %}
+            <label class="add-protocol-choice{% if value in form.get('protocols', []) %} is-selected{% endif %}" for="protocol-{{ value }}"><input id="protocol-{{ value }}" class="form-check-input" name="protocols" value="{{ value }}" type="checkbox"{% if value in form.get('protocols', []) %} checked{% endif %} data-protocol="{{ value }}" aria-controls="{{ value }}-fields"><span class="add-protocol-copy"><strong><i class="bi bi-{{ icon }}" aria-hidden="true"></i>{{ label }}</strong><small>{{ description }}</small></span></label>
+            {% endfor %}
+          </div>{{ feedback('protocols') }}
+        </fieldset>
+        <p class="add-routing-hint">Leave protocols unselected to register the device without routing configuration.</p>
+
+        <div id="ospfv2-fields" class="add-routing-details" data-routing-panel="ospfv2"><h3>OSPFv2 settings</h3><p>Required when OSPFv2 is selected.</p><div class="add-field-grid">{{ routing_input('ospfv2_process_id', 'Process ID', 'e.g. 10', 'A local process number from 1 to 65535.', true) }}{{ routing_input('ospfv2_router_id', 'Router ID', 'e.g. 6.6.6.6', 'An IPv4-format identifier for this routing process.') }}</div></div>
+        <div id="ospfv3-fields" class="add-routing-details" data-routing-panel="ospfv3"><h3>OSPFv3 settings</h3><p>Required when OSPFv3 is selected.</p><div class="add-field-grid">{{ routing_input('ospfv3_process_id', 'Process ID', 'e.g. 10', 'A local process number from 1 to 65535.', true) }}{{ routing_input('ospfv3_router_id', 'Router ID', 'e.g. 6.6.6.6', 'An IPv4-format identifier, including for OSPFv3.') }}</div></div>
+        <div id="ripv2-fields" class="add-routing-details" data-routing-panel="ripv2"><h3>RIP settings</h3><p>Registers a RIP protocol block with no network assignments. No neighbors or interface settings are added.</p></div>
+        <div id="bgp-fields" class="add-routing-details" data-routing-panel="bgp"><h3>BGP settings</h3><p>Required when BGP is selected. Neighbors can be configured in a later phase.</p><div class="add-field-grid">{{ routing_input('bgp_local_asn', 'Local ASN', 'e.g. 65002', 'The network’s autonomous system number: 1 to 4294967294.', true) }}{{ routing_input('bgp_router_id', 'Router ID', 'e.g. 6.6.6.6', 'An IPv4-format identifier for this BGP device.') }}</div></div>
+        <div class="add-inline-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Selected protocols are registered with the values you provide. Interfaces, network assignments, and neighbors are left empty.</div>
+      </section>
+
+      <section class="add-form-section surface" aria-labelledby="template-heading">
+        <div class="add-section-heading"><span class="add-section-number">05</span><div><h2 id="template-heading">Configuration template</h2><p>A configuration blueprint matched to your platform.</p></div></div>
+        <div class="add-field"><label for="template">Assigned template <span aria-hidden="true">*</span></label><select class="form-select{% if errors.get('template') %} is-invalid{% endif %}" id="template" name="template" required aria-describedby="template-help{% if errors.get('template') %} template-error{% endif %}"{% if errors.get('template') %} aria-invalid="true"{% endif %}>{% for item in supported_templates %}<option value="{{ item.template }}"{% if form.get('template') == item.template %} selected{% endif %}>{{ item.label }} — {{ item.template }}{% if not item.available %} (unavailable){% endif %}</option>{% endfor %}</select><div class="form-text" id="template-help">The configuration blueprint NetPilot will use to generate this device's configuration.</div>{{ feedback('template') }}</div>
+      </section>
+
+      <div class="add-form-actions"><div><i class="bi bi-shield-check" aria-hidden="true"></i><span>A timestamped inventory backup is saved before your device is added.</span></div><div class="add-action-buttons"><a class="add-cancel" href="{{ url_for('devices') }}">Cancel</a><button class="btn btn-primary" type="submit" id="add-device-submit"{% if not inventory_available %} disabled{% endif %}><i class="bi bi-plus-circle" aria-hidden="true"></i> Add Device</button></div></div>
+    </form>
+
+    <aside class="add-device-guide" aria-labelledby="registration-guide-title">
+      <div class="add-guide-card surface"><span class="add-guide-icon"><i class="bi bi-journal-plus" aria-hidden="true"></i></span><span class="eyebrow">ONE SIMPLE WORKFLOW</span><h2 id="registration-guide-title">From equipment<br>to inventory.</h2><p>Give NetPilot the details it needs to organize your next device.</p><ol class="add-guide-steps"><li><span>1</span><div><strong>Describe your device</strong><small>Choose its name, role, and management address.</small></div></li><li><span>2</span><div><strong>Check the details</strong><small>NetPilot checks required fields and existing records.</small></div></li><li><span>3</span><div><strong>Preserve your inventory</strong><small>A backup keeps a copy of the inventory before this change.</small></div></li><li><span>4</span><div><strong>See your new device</strong><small>Its details and updated device totals are available immediately.</small></div></li></ol><div class="add-guide-footer"><i class="bi bi-shield-check" aria-hidden="true"></i> Existing device records are preserved.</div></div>
+      <div class="add-guide-note"><i class="bi bi-info-circle" aria-hidden="true"></i><div><strong>Registration only</strong><p>This form updates your inventory. Configuration generation and live device connections belong to later phases.</p></div></div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  const form = document.getElementById('add-device-form');
+  const choices = Array.from(form.querySelectorAll('[data-protocol]'));
+  function updateProtocolFields() {
+    choices.forEach(choice => {
+      const panel = document.getElementById(`${choice.dataset.protocol}-fields`);
+      panel.hidden = !choice.checked;
+      choice.setAttribute('aria-expanded', String(choice.checked));
+      choice.closest('.add-protocol-choice').classList.toggle('is-selected', choice.checked);
+      panel.querySelectorAll('[data-routing-required]').forEach(input => {
+        input.required = choice.checked;
+        input.disabled = !choice.checked;
+      });
+    });
+  }
+  choices.forEach(choice => choice.addEventListener('change', updateProtocolFields));
+  updateProtocolFields();
+  const errors = document.getElementById('form-errors');
+  if (errors) errors.focus();
+  form.addEventListener('submit', () => {
+    const submit = document.getElementById('add-device-submit');
+    submit.disabled = true;
+    submit.textContent = 'Adding device…';
+  });
+})();
+</script>
+{% endblock %}

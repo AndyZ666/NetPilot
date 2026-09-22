@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if placeholder %}
+  <div class="page-heading"><div><span class="eyebrow">YOUR WORKSPACE</span><h1>{{ page_title }}</h1><p>A simpler way to manage your network.</p></div><span class="phase-badge">Coming in a later phase</span></div>
+  <section class="placeholder-panel surface" aria-labelledby="placeholder-title">
+    <span class="placeholder-icon"><i class="bi bi-tools" aria-hidden="true"></i></span>
+    <span class="eyebrow">UP NEXT</span>
+    <h2 id="placeholder-title">{{ page_title }} is on the horizon</h2>
+    <p>{{ placeholder_description }}</p>
+    <p class="placeholder-detail">This feature will be connected in a later phase. Explore the dashboard for an overview of your current workspace.</p>
+    <a class="btn btn-primary" href="{{ url_for('dashboard') }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to Dashboard</a>
+  </section>
+{% else %}
+  <div class="page-heading">
+    <div><span class="eyebrow">YOUR NETWORK, AT A GLANCE</span><h1>Dashboard</h1><p>A central view of your network automation workspace.</p></div>
+    <a class="text-link" href="{{ url_for('topology') }}"><i class="bi bi-diagram-3" aria-hidden="true"></i> Explore topology <i class="bi bi-arrow-up-right" aria-hidden="true"></i></a>
+  </div>
+
+  <section class="welcome-banner" aria-labelledby="welcome-title">
+    <div class="welcome-copy">
+      <span class="welcome-kicker"><span class="status-dot" aria-hidden="true"></span> CONNECTED BY DESIGN</span>
+      <h2 id="welcome-title">Welcome to NetPilot</h2>
+      <p>Manage, automate, and monitor your network from one place.</p>
+      <a class="btn welcome-button" href="{{ url_for('devices') }}">Explore your devices <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+    </div>
+    <div class="network-illustration" aria-hidden="true">
+      <div class="orbit orbit-outer"></div><div class="orbit orbit-inner"></div>
+      <span class="network-line line-one"></span><span class="network-line line-two"></span><span class="network-line line-three"></span>
+      <span class="network-hub"><i class="bi bi-diagram-3"></i></span>
+      <span class="network-node node-one"><i class="bi bi-hdd-network"></i></span>
+      <span class="network-node node-two"><i class="bi bi-router"></i></span>
+      <span class="network-node node-three"><i class="bi bi-pc-display"></i></span>
+      <span class="illustration-caption">INVENTORY <span>·</span> AUTOMATION <span>·</span> VISIBILITY</span>
+    </div>
+  </section>
+
+  {% if not inventory_available %}
+  <div class="inventory-alert" role="status"><i class="bi bi-info-circle" aria-hidden="true"></i><div><strong>Inventory information is unavailable</strong><p>{{ inventory_message }} Device totals show zero until the inventory can be loaded.</p></div></div>
+  {% endif %}
+
+  <section class="overview-section" aria-labelledby="overview-title">
+    <div class="section-heading"><h2 id="overview-title">Network overview</h2><span class="section-note"><i class="bi bi-database" aria-hidden="true"></i> From your central inventory</span></div>
+    <div class="stats-grid">
+      {% set metrics = [
+        ('total_devices', 'Managed devices', 'hdd-network', 'Equipment in your inventory', 'blue'),
+        ('routers', 'Routers', 'router', 'Connect your networks', 'cyan'),
+        ('switches', 'Switches', 'ethernet', 'Connect your devices', 'violet'),
+        ('vendors', 'Unique vendors', 'buildings', 'Equipment manufacturers', 'amber'),
+        ('templates', 'Config templates', 'file-earmark-code', 'Reusable configuration plans', 'teal')
+      ] %}
+      {% for key, label, icon, description, color in metrics %}
+      <article class="stat-card surface">
+        <div class="stat-top"><span class="stat-label">{{ label }}</span><span class="stat-icon icon-{{ color }}"><i class="bi bi-{{ icon }}" aria-hidden="true"></i></span></div>
+        <div class="stat-value">{{ stats[key] }}</div>
+        <p>{{ description }}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="actions-section" aria-labelledby="actions-title">
+    <div class="section-heading"><div><h2 id="actions-title">Quick Actions</h2><p>What would you like to do today?</p></div><span class="section-note">Your next step starts here</span></div>
+    <div class="actions-grid">
+      {% set actions = [
+        ('add_device', 'Add a Device', 'Add network equipment to the central inventory.', 'plus-circle', 'blue', 'Manage inventory'),
+        ('configuration', 'Generate Configuration', 'Create a device configuration automatically from the Network Source of Truth.', 'file-earmark-code', 'cyan', 'Build a configuration'),
+        ('golden_configs', 'Backup Configuration', 'Save a timestamped copy of a live device configuration.', 'archive', 'violet', 'Protect your setup'),
+        ('monitoring', 'Network Health', 'Open monitoring and visualization tools to check network health.', 'activity', 'teal', 'See the bigger picture')
+      ] %}
+      {% for endpoint, title, description, icon, color, caption in actions %}
+      <a class="action-card surface" href="{{ url_for(endpoint) }}">
+        <div class="action-card-top"><span class="action-icon icon-{{ color }}"><i class="bi bi-{{ icon }}" aria-hidden="true"></i></span><i class="bi bi-arrow-up-right action-arrow" aria-hidden="true"></i></div>
+        <h3>{{ title }}</h3><p>{{ description }}</p><span class="action-caption">{{ caption }} <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="framework-section" aria-labelledby="framework-title">
+    <div class="section-heading"><div><h2 id="framework-title">Automation Framework</h2><p>The building blocks behind your network workflow.</p></div><span class="section-note"><span class="small-status-dot" aria-hidden="true"></span> Workspace overview</span></div>
+    <div class="framework-grid">
+      <div class="framework-list surface">
+        {% set components = [
+          ('Network Source of Truth', 'Central inventory containing device and network data.', 'database', 'Ready' if inventory_available else 'Unavailable', 'ready' if inventory_available else 'unavailable'),
+          ('Configuration Templates', 'Reusable Jinja2 templates for generating device configurations.', 'file-earmark-code', 'Ready' if templates_available else 'Unavailable', 'ready' if templates_available else 'unavailable'),
+          ('Golden Configs', 'Timestamped known-good copies of live running configurations.', 'archive', 'Ready' if golden_configs_available else 'Not available', 'ready' if golden_configs_available else 'unavailable'),
+          ('Monitoring', 'Real-time visibility provided by the existing NetPilot monitoring stack.', 'activity', 'Available', 'available'),
+          ('GitHub CI', 'Automatically validates project code and configuration changes.', 'github', 'Active', 'ready')
+        ] %}
+        {% for title, description, icon, status, tone in components %}
+        <div class="framework-row"><span class="framework-icon"><i class="bi bi-{{ icon }}" aria-hidden="true"></i></span><div class="framework-copy"><h3>{{ title }}</h3><p>{{ description }}</p></div><span class="status-badge status-{{ tone }}"><span class="status-dot" aria-hidden="true"></span>{{ status }}</span></div>
+        {% endfor %}
+        <div class="framework-footnote"><i class="bi bi-info-circle" aria-hidden="true"></i> Framework availability is shown here. Live service health is not checked.</div>
+      </div>
+      <aside class="workflow-card" aria-labelledby="workflow-title">
+        <span class="workflow-top-icon"><i class="bi bi-signpost-split" aria-hidden="true"></i></span><span class="eyebrow">BUILT TO WORK TOGETHER</span><h3 id="workflow-title">A clear path from<br>inventory to insight.</h3><p>Keep your network organized with one consistent workflow.</p>
+        <ol class="workflow-steps"><li><span>01</span><div><strong>Define</strong><small>Keep device information in one place.</small></div></li><li><span>02</span><div><strong>Automate</strong><small>Generate and preserve configurations.</small></div></li><li><span>03</span><div><strong>Observe</strong><small>Understand how your network is doing.</small></div></li></ol>
+        <div class="workflow-bottom"><i class="bi bi-diagram-3" aria-hidden="true"></i> Your network. One workspace.</div>
+      </aside>
+    </div>
+  </section>
+{% endif %}
+{% endblock %}

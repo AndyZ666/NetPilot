@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="inventory-page">
+  <div class="page-heading">
+    <div><span class="eyebrow">KNOW YOUR NETWORK</span><h1>Devices</h1><p>Devices registered in the NetPilot Network Source of Truth.</p></div>
+    <span class="inventory-source"><i class="bi bi-database" aria-hidden="true"></i> Central inventory</span>
+  </div>
+
+  <div class="inventory-intro surface">
+    <span class="inventory-intro-icon"><i class="bi bi-hdd-network" aria-hidden="true"></i></span>
+    <div><h2>Your equipment, in one place</h2><p>Select a device to explore its addresses, connections, and configuration details.</p></div>
+    <span class="inventory-managed"><i class="bi bi-bookmark-check" aria-hidden="true"></i> Managed inventory</span>
+  </div>
+
+  {% if not inventory_available %}
+  <div class="inventory-alert" role="status"><i class="bi bi-info-circle" aria-hidden="true"></i><div><strong>Inventory information is unavailable</strong><p>The central inventory could not be loaded. Device information will appear here when it is available.</p></div></div>
+  {% endif %}
+
+  <section class="inventory-panel surface" aria-labelledby="device-list-title">
+    <div class="inventory-panel-heading"><div><h2 id="device-list-title">Device inventory <span class="inventory-count">{{ devices | length }}</span></h2><p>Managed means registered in NetPilot. Live availability is not checked.</p></div><span class="inventory-panel-label">NETWORK EQUIPMENT</span></div>
+
+    {% if devices %}
+    <div class="inventory-toolbar">
+      <div class="inventory-filters" role="group" aria-label="Filter devices by equipment type">
+        <button class="inventory-filter selected" type="button" data-kind="all" aria-pressed="true" aria-controls="device-rows">All Devices <span>{{ devices | length }}</span></button>
+        <button class="inventory-filter" type="button" data-kind="router" aria-pressed="false" aria-controls="device-rows"><i class="bi bi-router" aria-hidden="true"></i> Routers <span>{{ devices | selectattr('kind', 'equalto', 'router') | list | length }}</span></button>
+        <button class="inventory-filter" type="button" data-kind="switch" aria-pressed="false" aria-controls="device-rows"><i class="bi bi-ethernet" aria-hidden="true"></i> Switches <span>{{ devices | selectattr('kind', 'equalto', 'switch') | list | length }}</span></button>
+      </div>
+      <div class="inventory-search"><label class="visually-hidden" for="device-search">Search by device name or management IP</label><i class="bi bi-search" aria-hidden="true"></i><input id="device-search" type="search" placeholder="Search by device name or management IP..." autocomplete="off" aria-controls="device-rows"></div>
+    </div>
+    <noscript><p class="inventory-noscript">All devices are shown. Enable JavaScript to use search and equipment filters.</p></noscript>
+
+    <div class="inventory-table-wrap">
+      <table class="inventory-table">
+        <caption class="visually-hidden">Registered network devices. Select a device name or View details to open its inventory record.</caption>
+        <thead><tr><th scope="col">Device</th><th scope="col">Management IP</th><th scope="col">Equipment</th><th scope="col">Configuration template</th><th scope="col">Routing protocols</th><th scope="col"><span class="visually-hidden">Details</span></th></tr></thead>
+        <tbody id="device-rows">
+          {% for device in devices %}
+          <tr class="device-row" data-kind="{{ device.kind }}" data-name="{{ device.hostname }}" data-ip="{{ device.management_ip or '' }} {{ device.management_ipv6 or '' }}">
+            <td data-label="Device"><div class="device-name-cell"><span class="device-type-icon {% if device.kind == 'switch' %}icon-violet{% else %}icon-blue{% endif %}"><i class="bi bi-{{ 'router' if device.kind == 'router' else 'ethernet' if device.kind == 'switch' else 'hdd-network' }}" aria-hidden="true"></i></span><div><a class="device-name-link" href="{{ url_for('device_detail', hostname=device.hostname) }}">{{ device.hostname }}</a><span class="device-role">{{ device.role or 'Role not specified' }}</span></div></div></td>
+            <td data-label="Management IP"><span class="inventory-address">{{ device.management_ip or device.management_ipv6 or 'Not specified' }}</span><span class="device-managed-label">Managed</span></td>
+            <td data-label="Equipment"><div class="equipment-badges"><span class="inventory-tag vendor-tag">{{ device.vendor or 'Vendor not specified' }}</span><span class="inventory-tag platform-tag">{{ device.platform or 'Platform not specified' }}</span></div></td>
+            <td data-label="Configuration template"><span class="template-value">{% if device.template %}<i class="bi bi-file-earmark-code" aria-hidden="true"></i>{{ device.template }}{% else %}<span class="inventory-muted">Not specified</span>{% endif %}</span></td>
+            <td data-label="Routing protocols"><div class="protocol-tags">{% for protocol in device.protocols if protocol.enabled == true %}<span class="inventory-tag protocol-tag">{{ protocol.label }}</span>{% else %}<span class="inventory-muted">No enabled protocols recorded</span>{% endfor %}</div></td>
+            <td class="device-link-cell"><a class="device-detail-link" href="{{ url_for('device_detail', hostname=device.hostname) }}" aria-label="View details for {{ device.hostname }}"><span>View details</span><i class="bi bi-arrow-up-right" aria-hidden="true"></i></a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div id="no-matching-devices" class="inventory-empty" hidden><span class="inventory-empty-icon"><i class="bi bi-search" aria-hidden="true"></i></span><h3>No matching devices</h3><p>Try a different device name or management IP, or show all equipment types.</p><button class="inventory-reset" type="button" id="reset-device-filters">Clear search and filters <i class="bi bi-arrow-right" aria-hidden="true"></i></button></div>
+    <div class="inventory-panel-footer"><span id="device-result-count" role="status" aria-live="polite" aria-atomic="true">Showing {{ devices | length }} of {{ devices | length }} devices</span><span><i class="bi bi-database" aria-hidden="true"></i> Network Source of Truth</span></div>
+    {% else %}
+    <div class="inventory-empty"><span class="inventory-empty-icon"><i class="bi bi-hdd-network" aria-hidden="true"></i></span><h3>{{ 'Inventory unavailable' if not inventory_available else 'No devices to display' }}</h3><p>{{ 'The dashboard is still available while inventory information cannot be read.' if not inventory_available else 'Managed device records will appear here when they are available in the central inventory.' }}</p><a class="text-link" href="{{ url_for('dashboard') }}">Back to Dashboard <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
+    {% endif %}
+  </section>
+  <div class="inventory-help"><i class="bi bi-info-circle" aria-hidden="true"></i><p>Your source of truth describes how the network is configured. This view does not check whether a device is currently reachable.</p></div>
+</div>
+
+<script>
+(() => {
+  const search = document.getElementById('device-search');
+  if (!search) return;
+  const rows = Array.from(document.querySelectorAll('.device-row'));
+  const filters = Array.from(document.querySelectorAll('.inventory-filter'));
+  const resultCount = document.getElementById('device-result-count');
+  const emptyState = document.getElementById('no-matching-devices');
+  let selectedKind = 'all';
+
+  function filterDevices() {
+    const query = search.value.trim().toLocaleLowerCase();
+    let visibleCount = 0;
+    rows.forEach(row => {
+      const matchesType = selectedKind === 'all' || row.dataset.kind === selectedKind;
+      const matchesSearch = `${row.dataset.name} ${row.dataset.ip}`.toLocaleLowerCase().includes(query);
+      row.hidden = !(matchesType && matchesSearch);
+      if (!row.hidden) visibleCount += 1;
+    });
+    filters.forEach(button => {
+      const selected = button.dataset.kind === selectedKind;
+      button.classList.toggle('selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+    resultCount.textContent = `Showing ${visibleCount} of ${rows.length} devices`;
+    emptyState.hidden = visibleCount !== 0;
+  }
+
+  search.addEventListener('input', filterDevices);
+  filters.forEach(button => button.addEventListener('click', () => {
+    selectedKind = button.dataset.kind;
+    filterDevices();
+  }));
+  document.getElementById('reset-device-filters').addEventListener('click', () => {
+    selectedKind = 'all';
+    search.value = '';
+    filterDevices();
+    search.focus();
+  });
+})();
+</script>
+{% endblock %}

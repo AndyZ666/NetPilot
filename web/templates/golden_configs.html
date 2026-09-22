@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="inventory-page config-management-page">
+  <div class="page-heading">
+    <div><span class="eyebrow">KEEP A RECORD OF YOUR NETWORK</span><h1>Golden Configs</h1><p>Capture and review saved running configurations from your managed devices.</p></div>
+    <span class="inventory-source"><i class="bi bi-archive" aria-hidden="true"></i> Golden configuration</span>
+  </div>
+
+  <div class="inventory-intro surface">
+    <span class="inventory-intro-icon"><i class="bi bi-archive" aria-hidden="true"></i></span>
+    <div><h2>Your live configuration, preserved</h2><p>A Golden Configuration records the device’s running configuration at the time it was captured. Select a device to save a new snapshot or browse its history.</p></div>
+  </div>
+  <div class="inventory-alert" role="note"><i class="bi bi-hdd-network" aria-hidden="true"></i><div><strong>Live device connection</strong><p>Golden Config capture connects to live managed devices using SSH and saves timestamped running configurations.</p></div></div>
+
+  {% if not inventory_available %}
+  <div class="inventory-alert" role="status"><i class="bi bi-info-circle" aria-hidden="true"></i><div><strong>Inventory information is unavailable</strong><p>The central inventory could not be loaded. Device capture will be available when the inventory can be read.</p></div></div>
+  {% endif %}
+  {% if error %}
+  <div class="workspace-notice notice-error" role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><div><strong>Unable to complete this request</strong><p>{{ error }}</p></div></div>
+  {% endif %}
+  {% if action_results %}
+  <section class="config-results" aria-label="Golden Config capture results" aria-live="polite">
+    {% for result in action_results %}
+    <div class="config-result {{ 'is-success' if result.success else 'is-error' }}" role="{{ 'status' if result.success else 'alert' }}"><i class="bi bi-{{ 'check-circle' if result.success else 'exclamation-circle' }}" aria-hidden="true"></i><div><strong>{{ result.hostname }}</strong><p>{{ result.message }}</p>{% if result.filename %}<span class="config-file-label">{{ result.filename }}</span>{% endif %}</div></div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <div class="config-workspace">
+    <aside class="config-controls" aria-label="Golden Config options and history">
+      <section class="inventory-panel surface" aria-labelledby="golden-device-title">
+        <div class="inventory-panel-heading"><div><h2 id="golden-device-title">Choose a device</h2><p>Capture its current configuration or review saved snapshots.</p></div></div>
+        <div class="config-panel-body">
+          <form class="config-selector" action="{{ url_for('golden_configs') }}" method="get">
+            <div class="config-field"><label for="golden-hostname">Device</label><select class="form-select" name="hostname" id="golden-hostname" required{% if not devices or not inventory_available %} disabled{% endif %}><option value="">Select a device</option>{% for device in devices %}<option value="{{ device.hostname }}"{% if selected_hostname == device.hostname %} selected{% endif %}>{{ device.hostname }}{% if device.management_ip %} · {{ device.management_ip }}{% endif %}</option>{% endfor %}</select></div>
+            <button class="btn btn-outline-primary" type="submit"{% if not devices or not inventory_available %} disabled{% endif %}>Select Device <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+          </form>
+
+          {% if selected_device %}
+          <dl class="config-selection-meta"><div><dt>Selected device</dt><dd><a href="{{ url_for('device_detail', hostname=selected_device.hostname) }}">{{ selected_device.hostname }}</a></dd></div><div><dt>Management IP</dt><dd>{{ selected_device.management_ip or 'Not specified' }}</dd></div></dl>
+          {% else %}
+          <p class="config-notice">{{ 'No devices are currently registered in the inventory.' if inventory_available and not devices else 'Select a device to capture a Golden Config or browse its saved snapshots.' }}</p>
+          {% endif %}
+
+          <form class="config-actions" action="{{ url_for('golden_configs') }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="capture">
+            <input type="hidden" name="hostname" value="{{ selected_hostname or '' }}">
+            <button class="btn btn-primary" type="submit"{% if not selected_device or not inventory_available %} disabled{% endif %}><i class="bi bi-camera" aria-hidden="true"></i> Capture Golden Config</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="inventory-panel surface" aria-labelledby="golden-history-title">
+        <div class="inventory-panel-heading"><div><h2 id="golden-history-title">Snapshot history <span class="inventory-count">{{ snapshots | length }}</span></h2><p>{% if selected_device %}Saved configurations for {{ selected_device.hostname }}, newest first.{% else %}Choose a device to see its saved history.{% endif %}</p></div></div>
+        {% if selected_device and snapshots %}
+        <ul class="config-history">
+          {% for snapshot in snapshots %}
+          <li class="config-history-row{% if snapshot_name == snapshot.filename %} is-selected{% endif %}"><div><span class="config-history-file"><i class="bi bi-file-earmark-text" aria-hidden="true"></i> {{ snapshot.filename }}</span><span class="config-history-time">{{ snapshot.timestamp or 'Timestamp unavailable' }}</span></div><a class="device-detail-link" href="{{ url_for('golden_snapshot', hostname=selected_device.hostname, filename=snapshot.filename) }}" aria-label="View snapshot {{ snapshot.filename }}"{% if snapshot_name == snapshot.filename %} aria-current="page"{% endif %}>View <i class="bi bi-arrow-up-right" aria-hidden="true"></i></a></li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="config-panel-body"><p class="config-notice">{% if selected_device %}No saved snapshots are available for this device. Capture a Golden Config to start its history.{% else %}Saved snapshots will appear here after you select a device.{% endif %}</p></div>
+        {% endif %}
+      </section>
+
+      <section class="inventory-panel surface" aria-labelledby="capture-all-title">
+        <div class="inventory-panel-heading"><div><h2 id="capture-all-title">Back up your network</h2><p>Connect to all registered devices and capture a timestamped snapshot for each reachable device. This may take a little time.</p></div></div>
+        <form class="config-panel-body config-secondary-action" action="{{ url_for('golden_configs') }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="action" value="capture_all">
+          <input type="hidden" name="hostname" value="{{ selected_hostname or '' }}">
+          <button class="btn btn-outline-primary" type="submit"{% if not devices or not inventory_available %} disabled{% endif %}><i class="bi bi-collection" aria-hidden="true"></i> Backup All Devices</button>
+        </form>
+      </section>
+    </aside>
+
+    <section class="config-viewer surface" aria-labelledby="golden-configuration-title">
+      <div class="config-viewer-header"><div><span class="eyebrow">CAPTURED FROM THE LIVE DEVICE</span><h2 id="golden-configuration-title">Golden Configuration</h2><p>A saved running configuration from a particular point in time.</p></div>{% if snapshot_name %}<span class="config-file-label"><i class="bi bi-file-earmark-text" aria-hidden="true"></i> {{ snapshot_name }}</span>{% endif %}</div>
+      {% if snapshot_content is not none %}
+      {% if snapshot_redacted %}<p class="config-notice"><i class="bi bi-shield-lock" aria-hidden="true"></i> Sensitive configuration values are hidden in this viewer.</p>{% endif %}
+      <pre class="config-code" tabindex="0" aria-label="Golden configuration{% if selected_device %} for {{ selected_device.hostname }}{% endif %}"><code>{{ snapshot_content }}</code></pre>
+      {% else %}
+      <div class="inventory-empty"><span class="inventory-empty-icon"><i class="bi bi-clock-history" aria-hidden="true"></i></span><h3>{% if snapshot_name %}Snapshot unavailable{% elif selected_device and snapshots %}Choose a snapshot{% elif selected_device %}Ready for your first snapshot{% else %}Choose a device to get started{% endif %}</h3><p>{% if snapshot_name %}This snapshot could not be opened. Select another saved snapshot from the history.{% elif selected_device and snapshots %}Select View beside a saved snapshot to read its captured configuration here.{% elif selected_device %}Capture a Golden Config for {{ selected_device.hostname }} to preserve its running configuration.{% else %}Select a registered device to capture its running configuration or browse saved snapshots.{% endif %}</p></div>
+      {% endif %}
+    </section>
+  </div>
+
+  <div class="inventory-help config-explanation"><i class="bi bi-info-circle" aria-hidden="true"></i><p><strong>Golden Configuration</strong> records what was running on a live device when captured. <strong>Desired Configuration</strong> is generated from the Source of Truth and a template. <a href="{{ url_for('configuration') }}">View Configuration <i class="bi bi-arrow-right" aria-hidden="true"></i></a></p></div>
+</div>
+{% endblock %}
