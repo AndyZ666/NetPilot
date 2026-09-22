@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="inventory-page monitoring-page">
+  <div class="page-heading">
+    <div><span class="eyebrow">NETWORK HEALTH</span><h1>Monitoring</h1><p>See how your network is behaving right now, powered by the existing Grafana dashboard.</p></div>
+    <a class="btn btn-primary" href="{{ grafana_url }}" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open Grafana Dashboard</a>
+  </div>
+
+  <div class="inventory-intro surface">
+    <span class="inventory-intro-icon"><i class="bi bi-activity" aria-hidden="true"></i></span>
+    <div><h2>Powered by your existing monitoring stack</h2><p>NetPilot does not collect monitoring data itself. Your network devices already stream live telemetry through gNMI, Telegraf, and InfluxDB into Grafana, which turns it into the charts below — no command line or deep networking knowledge required to read them.</p></div>
+  </div>
+
+  <section class="monitor-topics-section" aria-labelledby="monitor-topics-title">
+    <div class="section-heading"><div><h2 id="monitor-topics-title">What the dashboard shows</h2><p>Grafana already tracks these for every monitored device.</p></div><span class="section-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Updated automatically</span></div>
+    <div class="monitor-topics-grid">
+      {% set topics = [
+        ('Network health overview', 'A big-picture summary of whether devices and links are online and behaving normally.', 'heart-pulse', 'blue'),
+        ('Interface operational status', 'Shows which interfaces are currently up, down, or administratively disabled.', 'plug', 'cyan'),
+        ('Interfaces requiring attention', 'Highlights interfaces with errors so you know where to look first.', 'exclamation-triangle', 'amber'),
+        ('Interface traffic', 'Charts how much data is flowing through each interface over time.', 'graph-up', 'violet'),
+        ('CPU utilization', "Tracks how hard each device's processor is working, which can reveal overload issues.", 'cpu', 'teal'),
+        ('Link flapping / carrier transitions', 'Flags links that keep going up and down, a common sign of a flaky connection.', 'arrow-repeat', 'blue')
+      ] %}
+      {% for title, description, icon, color in topics %}
+      <article class="monitor-topic-card surface">
+        <span class="action-icon icon-{{ color }}"><i class="bi bi-{{ icon }}" aria-hidden="true"></i></span>
+        <h3>{{ title }}</h3>
+        <p>{{ description }}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="monitor-embed-section surface" aria-labelledby="monitor-embed-title">
+    <div class="inventory-panel-heading">
+      <div><h2 id="monitor-embed-title">Grafana Dashboard</h2><p>The same dashboard available at <code>{{ grafana_url }}</code>, shown here for convenience.</p></div>
+      <a class="text-link" href="{{ grafana_url }}" target="_blank" rel="noopener noreferrer">Open in a new tab <i class="bi bi-arrow-up-right" aria-hidden="true"></i></a>
+    </div>
+    <div class="monitor-embed-body">
+      <div class="inventory-help"><i class="bi bi-info-circle" aria-hidden="true"></i><p>Some Grafana setups block embedded dashboards for security, so the panel below may appear empty even when Grafana itself is working normally.</p></div>
+
+      <div class="monitor-embed-frame"><iframe src="{{ grafana_url }}" title="Grafana network monitoring dashboard" id="grafana-frame"></iframe></div>
+
+      <div class="workspace-notice notice-warning monitor-embed-fallback" role="status">
+        <i class="bi bi-display" aria-hidden="true"></i>
+        <div>
+          <strong>Dashboard not showing above?</strong>
+          <p>Grafana may be unreachable at <code>{{ grafana_url }}</code>, or it may be configured to block embedding for security — a browser cannot reliably tell which. Either way, you can always reach live monitoring data by opening Grafana in its own tab.</p>
+          <a class="btn btn-primary" href="{{ grafana_url }}" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open Grafana Dashboard</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="inventory-help monitor-explanation"><i class="bi bi-info-circle" aria-hidden="true"></i><p><strong>NetPilot does not store or process monitoring data.</strong> All telemetry is collected and displayed by the existing gNMI, Telegraf, InfluxDB, and Grafana stack; this page only gives you a convenient way to reach it.</p></div>
+</div>
+{% endblock %}

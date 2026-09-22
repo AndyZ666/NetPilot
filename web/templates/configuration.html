@@ -77,6 +77,42 @@
     </section>
   </div>
 
+  <section class="template-support-section" aria-labelledby="template-support-title">
+    <div class="section-heading"><div><h2 id="template-support-title">Supported Templates</h2><p>The same renderer builds every configuration on this page from structured data plus an assigned Jinja2 template.</p></div></div>
+    <div class="template-support-grid">
+      <article class="template-card surface">
+        <div class="template-card-top"><span class="template-card-icon icon-blue"><i class="bi bi-router" aria-hidden="true"></i></span><span class="status-badge status-ready"><span class="status-dot" aria-hidden="true"></span>Live Lab Support</span></div>
+        <h3>Arista cEOS</h3>
+        <p class="template-value"><i class="bi bi-file-earmark-code" aria-hidden="true"></i>arista_ceos.j2</p>
+        <p>Used by every device currently registered in the Source of Truth.</p>
+      </article>
+      <article class="template-card surface">
+        <div class="template-card-top"><span class="template-card-icon icon-violet"><i class="bi bi-router" aria-hidden="true"></i></span><span class="status-badge status-available"><span class="status-dot" aria-hidden="true"></span>Template Demonstration</span></div>
+        <h3>Cisco IOS-XE</h3>
+        <p class="template-value"><i class="bi bi-file-earmark-code" aria-hidden="true"></i>cisco_iosxe.j2</p>
+        <p>Proves the renderer isn’t Arista-specific. Sample data only — no live Cisco device exists.</p>
+      </article>
+    </div>
+
+    <div class="cisco-sample-panel surface" aria-labelledby="cisco-sample-title">
+      <div class="inventory-panel-heading">
+        <div><h2 id="cisco-sample-title">Cisco IOS-XE Sample<span class="sample-badge">Sample / Template Demonstration</span></h2><p>Rendered from <span class="template-value"><i class="bi bi-file-earmark-code" aria-hidden="true"></i>examples/cisco_test_device.yml</span> using the same renderer as above. Not connected to any live device, monitoring, or Golden Config.</p></div>
+      </div>
+      <div class="cisco-sample-body">
+        <form action="{{ url_for('generate_cisco_sample') }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn-outline-primary" type="submit"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Generate Sample Config</button>
+        </form>
+        {% if cisco_sample_available %}
+        {% if cisco_sample_redacted %}<p class="config-notice"><i class="bi bi-shield-lock" aria-hidden="true"></i> Sensitive configuration values are hidden in this viewer.</p>{% endif %}
+        <pre class="config-code" tabindex="0" aria-label="Cisco IOS-XE sample configuration for CISCO-R1"><code>{{ cisco_sample_content }}</code></pre>
+        {% else %}
+        <p class="config-notice">No sample configuration has been generated yet. Use Generate Sample Config to create one from templates/cisco_iosxe.j2.</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
   <div class="inventory-help config-explanation"><i class="bi bi-info-circle" aria-hidden="true"></i><p><strong>Desired Configuration</strong> describes what is built from the Source of Truth and a template. <strong>Golden Configuration</strong> is a saved copy of the live device’s running configuration. <a href="{{ url_for('golden_configs') }}">View Golden Configs <i class="bi bi-arrow-right" aria-hidden="true"></i></a></p></div>
 </div>
 {% endblock %}

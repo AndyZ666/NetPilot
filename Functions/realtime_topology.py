@@ -1,10 +1,14 @@
+import argparse
+import json
 import os
 import sys
 import time
-import json
-import yaml
-import networkx as nx
+
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import networkx as nx
+import yaml
 
 from influxdb_client import InfluxDBClient
 
@@ -17,33 +21,7 @@ INFLUX_URL = "http://127.0.0.1:8086"
 INFLUX_ORG = "NetPilot"
 INFLUX_BUCKET = "telemetry"
 REFRESH_SECONDS = 5
-
-TOKEN = os.getenv("INFLUX_TOKEN")
-
-if not TOKEN:
-    raise RuntimeError("INFLUX_TOKEN is not set")
-
-
-# --------------------------------------------------
-# Command-line arguments
-# --------------------------------------------------
-
-if len(sys.argv) < 2:
-    print(
-        "Usage: python realtime_topology.py "
-        "<topology.clab.yml> [devices.json]"
-    )
-    sys.exit(1)
-
-TOPOLOGY_FILE = sys.argv[1]
-
-if len(sys.argv) >= 3:
-    DEVICES_FILE = sys.argv[2]
-else:
-    DEVICES_FILE = os.path.join(
-        os.path.dirname(__file__),
-        "devices.json"
-    )
+DEFAULT_OUTPUT_FILE = "netpilot_realtime_topology.png"
 
 
 # --------------------------------------------------
@@ -123,9 +101,6 @@ def load_devices_json(path):
         print("Using built-in management IP mapping.")
 
 
-load_devices_json(DEVICES_FILE)
-
-
 # --------------------------------------------------
 # Normalize Containerlab interface names
 # eth1 -> Ethernet1
@@ -145,75 +120,63 @@ def normalize_interface(interface):
 # Load Containerlab topology
 # --------------------------------------------------
 
-with open(TOPOLOGY_FILE, "r") as f:
-    topo_data = yaml.safe_load(f)
+def build_topology_graph(topology_file):
+    with open(topology_file, "r") as f:
+        topo_data = yaml.safe_load(f)
 
-topology = topo_data["topology"]
+    topology = topo_data["topology"]
 
-nodes = topology.get("nodes", {})
-links = topology.get("links", [])
+    nodes = topology.get("nodes", {})
+    links = topology.get("links", [])
 
-G = nx.Graph()
+    G = nx.Graph()
 
-for node in nodes:
-    G.add_node(node)
+    for node in nodes:
+        G.add_node(node)
 
-for link in links:
+    for link in links:
 
-    endpoints = link.get("endpoints", [])
+        endpoints = link.get("endpoints", [])
 
-    if len(endpoints) != 2:
-        continue
+        if len(endpoints) != 2:
+            continue
 
-    ep1 = endpoints[0]
-    ep2 = endpoints[1]
+        ep1 = endpoints[0]
+        ep2 = endpoints[1]
 
-    node1, intf1 = ep1.split(":", 1)
-    node2, intf2 = ep2.split(":", 1)
+        node1, intf1 = ep1.split(":", 1)
+        node2, intf2 = ep2.split(":", 1)
 
-    G.add_edge(
-        node1,
-        node2,
-        endpoint1=ep1,
-        endpoint2=ep2,
-        interface1=normalize_interface(intf1),
-        interface2=normalize_interface(intf2),
-    )
+        G.add_edge(
+            node1,
+            node2,
+            endpoint1=ep1,
+            endpoint2=ep2,
+            interface1=normalize_interface(intf1),
+            interface2=normalize_interface(intf2),
+        )
 
-
-print("\nLoaded topology")
-print("------------------------------")
-print(f"Devices: {G.number_of_nodes()}")
-print(f"Links:   {G.number_of_edges()}")
-
-for u, v, data in G.edges(data=True):
-    print(
-        f"{data['endpoint1']} <--> "
-        f"{data['endpoint2']}"
-    )
+    return G
 
 
-# --------------------------------------------------
-# Stable layout
-# --------------------------------------------------
+def print_topology_summary(G):
+    print("\nLoaded topology")
+    print("------------------------------")
+    print(f"Devices: {G.number_of_nodes()}")
+    print(f"Links:   {G.number_of_edges()}")
 
-pos = nx.kamada_kawai_layout(G)
+    for u, v, data in G.edges(data=True):
+        print(
+            f"{data['endpoint1']} <--> "
+            f"{data['endpoint2']}"
+        )
 
 
 # --------------------------------------------------
 # InfluxDB
 # --------------------------------------------------
 
-client = InfluxDBClient(
-    url=INFLUX_URL,
-    token=TOKEN,
-    org=INFLUX_ORG
-)
-
-query_api = client.query_api()
-
-
-def get_interface_states():
+def get_interface_states(query_api):
 
     query = f'''
 from(bucket: "{INFLUX_BUCKET}")
@@ -312,7 +275,7 @@ def determine_link_status(node1, node2, edge, states):
 # Draw real-time topology
 # --------------------------------------------------
 
-def draw_topology(states):
+def draw_topology(G, pos, states, output_file=DEFAULT_OUTPUT_FILE):
 
     plt.figure(figsize=(14, 9))
 
@@ -428,8 +391,6 @@ def draw_topology(states):
     plt.axis("off")
     plt.tight_layout()
 
-    output_file = "netpilot_realtime_topology.png"
-
     plt.savefig(
         output_file,
         dpi=180,
@@ -447,40 +408,95 @@ def draw_topology(states):
 
 
 # --------------------------------------------------
-# Main refresh loop
+# CLI entry point
 # --------------------------------------------------
 
-print("\nStarting real-time topology monitor...")
-print(
-    f"Refreshing every {REFRESH_SECONDS} seconds."
-)
-print("Press Ctrl+C to stop.\n")
+def main():
+    parser = argparse.ArgumentParser(
+        description="Draw the NetPilot Containerlab topology with live InfluxDB link status."
+    )
+    parser.add_argument("topology_file", help="Path to the Containerlab .clab.yml topology file")
+    parser.add_argument("devices_file", nargs="?", default=None, help="Optional devices.json management-IP mapping")
+    parser.add_argument("--once", action="store_true", help="Draw a single snapshot and exit instead of refreshing continuously")
+    parser.add_argument("--output", default=DEFAULT_OUTPUT_FILE, help="Path to save the PNG snapshot")
+    args = parser.parse_args()
+
+    devices_file = args.devices_file or os.path.join(
+        os.path.dirname(__file__),
+        "devices.json"
+    )
+    load_devices_json(devices_file)
+
+    token = os.getenv("INFLUX_TOKEN")
+
+    if not token:
+        raise RuntimeError("INFLUX_TOKEN is not set")
+
+    G = build_topology_graph(args.topology_file)
+    print_topology_summary(G)
+
+    pos = nx.kamada_kawai_layout(G)
+
+    client = InfluxDBClient(
+        url=INFLUX_URL,
+        token=token,
+        org=INFLUX_ORG
+    )
+
+    query_api = client.query_api()
+
+    if args.once:
+        try:
+            states = get_interface_states(query_api)
+            output_file, up, down, unknown = draw_topology(
+                G, pos, states, args.output
+            )
+            print(json.dumps({
+                "node_count": G.number_of_nodes(),
+                "link_count": G.number_of_edges(),
+                "up": up,
+                "down": down,
+                "unknown": unknown,
+                "output_file": output_file,
+            }))
+        finally:
+            client.close()
+        return
+
+    print("\nStarting real-time topology monitor...")
+    print(
+        f"Refreshing every {REFRESH_SECONDS} seconds."
+    )
+    print("Press Ctrl+C to stop.\n")
+
+    try:
+
+        while True:
+
+            states = get_interface_states(query_api)
+
+            output_file, up, down, unknown = draw_topology(
+                G, pos, states, args.output
+            )
+
+            print(
+                f"[{time.strftime('%H:%M:%S')}] "
+                f"Interfaces loaded: {len(states):3d} | "
+                f"Links UP: {up:2d} | "
+                f"DOWN: {down:2d} | "
+                f"UNKNOWN: {unknown:2d}"
+            )
+
+            time.sleep(REFRESH_SECONDS)
+
+    except KeyboardInterrupt:
+
+        print("\nStopping topology monitor.")
+
+    finally:
+
+        client.close()
 
 
-try:
-
-    while True:
-
-        states = get_interface_states()
-
-        output_file, up, down, unknown = (
-            draw_topology(states)
-        )
-
-        print(
-            f"[{time.strftime('%H:%M:%S')}] "
-            f"Interfaces loaded: {len(states):3d} | "
-            f"Links UP: {up:2d} | "
-            f"DOWN: {down:2d} | "
-            f"UNKNOWN: {unknown:2d}"
-        )
-
-        time.sleep(REFRESH_SECONDS)
-
-except KeyboardInterrupt:
-
-    print("\nStopping topology monitor.")
-
-finally:
-
-    client.close()
+if __name__ == "__main__":
+    main()

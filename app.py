@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import datetime
 import fcntl
 import ipaddress
+import json
 import os
 from pathlib import Path
 import re
@@ -23,6 +24,12 @@ INVENTORY_PATH = BASE_DIR / "inventory" / "devices.yml"
 CONFIGURATION_TEMPLATES_PATH = BASE_DIR / "templates"
 GOLDEN_CONFIGS_PATH = BASE_DIR / "golden_configs"
 GENERATED_CONFIGS_PATH = BASE_DIR / "generated_configs"
+GRAFANA_DEFAULT_URL = "http://127.0.0.1:3000"
+TOPOLOGY_FILE_PATH = BASE_DIR / "nettopo.clab.yml"
+TOPOLOGY_SCRIPT_PATH = BASE_DIR / "Functions" / "realtime_topology.py"
+TOPOLOGY_SNAPSHOT_PATH = BASE_DIR / "web" / "static" / "generated" / "topology.png"
+CISCO_SAMPLE_HOSTNAME = "CISCO-R1"
+CISCO_SAMPLE_INVENTORY_PATH = BASE_DIR / "examples" / "cisco_test_device.yml"
 _CONFIGURATION_LOCK = threading.Lock()
 _SAFE_HOSTNAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,62}\Z")
 _SENSITIVE_CONFIG = re.compile(
@@ -283,6 +290,30 @@ def _serialize_added_device(original, inventory, device_node, record):
     return updated, expected
 
 
+def _serialize_removed_device(original, inventory, device_node, hostname):
+    """Delete exactly one device's YAML block, leaving every other character in place."""
+    source = original.decode("utf-8")
+    entry = next(((key, value) for key, value in device_node.value if key.value == hostname), None)
+    if entry is None:
+        raise InventoryWriteError(f"'{hostname}' was not found in the inventory. No changes were made.")
+    key_node, value_node = entry
+    # Snap to the true start of each line rather than trusting mark.index directly: PyYAML
+    # sometimes includes the following sibling's own indentation in a value's end mark
+    # (harmless for a middle entry, since the deleted indent is simply inherited by the next
+    # sibling) but not when the following content is a dedented key, which would otherwise
+    # leave that dedented line with orphaned leading whitespace.
+    start = source.rfind("\n", 0, key_node.start_mark.index) + 1
+    end = source.rfind("\n", 0, value_node.end_mark.index) + 1
+    if not (0 <= start < end <= len(source)):
+        raise InventoryWriteError("The inventory layout cannot be safely changed for this device. No changes were made.")
+    updated = (source[:start] + source[end:]).encode("utf-8")
+    expected = deepcopy(inventory)
+    del expected["devices"][hostname]
+    if yaml.load(updated, Loader=_UniqueKeyLoader) != expected:
+        raise InventoryWriteError("The updated inventory did not pass validation. No changes were made.")
+    return updated, expected
+
+
 def create_nsot_backup(original_bytes, inventory_path):
     """Exclusively create an exact, durable pre-change copy; never overwrite."""
     directory = Path(inventory_path).parent / "backups"
@@ -363,6 +394,65 @@ def save_inventory_safely(form, path=None):
             app.logger.error("Device registration could not be saved (%s).", type(error).__name__)
             raise InventoryWriteError(
                 "The device could not be saved safely. The inventory was not changed. Please try again."
+            ) from error
+        finally:
+            if temporary_path is not None:
+                try:
+                    temporary_path.unlink(missing_ok=True)
+                except OSError:
+                    app.logger.warning("An unused inventory temporary file could not be removed.")
+            try:
+                os.close(directory_descriptor)
+            except OSError:
+                app.logger.warning("The inventory directory handle could not be closed.")
+
+
+def remove_device_safely(hostname, path=None):
+    """Serialize web writers, back up, verify a temp file, then atomically replace."""
+    inventory_path = Path(path if path is not None else INVENTORY_PATH)
+    with _INVENTORY_WRITE_LOCK:
+        try:
+            directory_descriptor = os.open(inventory_path.parent, os.O_RDONLY)
+        except OSError as error:
+            raise InventoryWriteError("The inventory directory is unavailable. No changes were made.") from error
+        temporary_path = None
+        try:
+            fcntl.flock(directory_descriptor, fcntl.LOCK_EX)
+            original, inventory, device_node = _read_writable_inventory(inventory_path)
+            if hostname not in inventory["devices"]:
+                raise InventoryWriteError(f"'{hostname}' was not found in the inventory. No changes were made.")
+            if len(inventory["devices"]) <= 1:
+                raise InventoryWriteError("The last remaining device cannot be removed from the inventory.")
+            updated, expected = _serialize_removed_device(original, inventory, device_node, hostname)
+            backup_path = create_nsot_backup(original, inventory_path)
+            descriptor, name = tempfile.mkstemp(prefix=".devices-", suffix=".yml.tmp", dir=inventory_path.parent)
+            temporary_path = Path(name)
+            with os.fdopen(descriptor, "wb") as temporary_file:
+                os.fchmod(temporary_file.fileno(), inventory_path.stat().st_mode & 0o777)
+                temporary_file.write(updated)
+                temporary_file.flush()
+                os.fsync(temporary_file.fileno())
+            with temporary_path.open(encoding="utf-8") as temporary_file:
+                if yaml.load(temporary_file, Loader=_UniqueKeyLoader) != expected:
+                    raise InventoryWriteError("The updated inventory did not pass validation. No changes were made.")
+            # Detect edits from an editor or another program that does not use our lock.
+            if inventory_path.is_symlink() or inventory_path.read_bytes() != original:
+                raise InventoryWriteError("The inventory changed while this request was processing. Please try again.")
+            os.replace(temporary_path, inventory_path)
+            temporary_path = None
+            # Once committed, a directory flush failure must not report a failed removal.
+            try:
+                os.fsync(directory_descriptor)
+            except OSError:
+                app.logger.warning("Inventory saved, but its directory could not be flushed to disk.")
+            return backup_path
+        except InventoryWriteError:
+            raise
+        except Exception as error:
+            # Avoid logging YAML fragments or submitted values, which may be sensitive.
+            app.logger.error("Device removal could not be saved (%s).", type(error).__name__)
+            raise InventoryWriteError(
+                "The device could not be removed safely. The inventory was not changed. Please try again."
             ) from error
         finally:
             if temporary_path is not None:
@@ -712,6 +802,9 @@ def devices():
 def device_detail(hostname):
     inventory = load_inventory()
     device = next((item for item in normalize_inventory(inventory) if item["hostname"] == hostname), None)
+    token = session.get("remove_device_csrf")
+    if not isinstance(token, str):
+        token = session["remove_device_csrf"] = secrets.token_hex(32)
     return render_template(
         "device_detail.html",
         page_title=device["hostname"] if device else "Device not found",
@@ -719,7 +812,26 @@ def device_detail(hostname):
         device=device,
         requested_hostname=hostname,
         inventory_available=inventory is not None,
+        csrf_token=token,
     ), 200 if device else 404
+
+
+@app.post("/devices/<hostname>/remove")
+def remove_device(hostname):
+    """Remove one device's NSOT record only; live devices are never contacted."""
+    token = session.get("remove_device_csrf")
+    submitted_token = request.form.get("csrf_token", "")
+    if not isinstance(token, str) or not secrets.compare_digest(submitted_token.encode("utf-8"), token.encode("utf-8")):
+        flash("This form has expired or could not be verified. Please try again.", "error")
+        return redirect(url_for("device_detail", hostname=hostname), code=303)
+    try:
+        remove_device_safely(hostname)
+    except InventoryWriteError as error:
+        flash(str(error), "error")
+        return redirect(url_for("device_detail", hostname=hostname), code=303)
+    session.pop("remove_device_csrf", None)
+    flash(f"{hostname} was removed from the NetPilot inventory.", "success")
+    return redirect(url_for("devices"), code=303)
 
 
 @app.route("/devices/add", methods=["GET", "POST"])
@@ -906,6 +1018,25 @@ def _output_state(hostname, golden):
     return state
 
 
+def _generate_cisco_sample():
+    """Render the same way _run_configuration_action does, pointed at the sample-only inventory."""
+    command = [
+        sys.executable, "-u", str(BASE_DIR / "render_configs.py"), CISCO_SAMPLE_HOSTNAME,
+        "--inventory", str(CISCO_SAMPLE_INVENTORY_PATH),
+        "--template-dir", str(CONFIGURATION_TEMPLATES_PATH),
+        "--output-dir", str(GENERATED_CONFIGS_PATH),
+    ]
+    try:
+        completed = subprocess.run(
+            command, cwd=BASE_DIR, shell=False, capture_output=True,
+            text=True, encoding="utf-8", errors="replace", timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    expected = GENERATED_CONFIGS_PATH / f"{CISCO_SAMPLE_HOSTNAME}.cfg"
+    return completed.returncode == 0 and expected.is_file()
+
+
 def _run_configuration_action(targets, golden, all_devices):
     """Execute existing backends without a shell; never expose their raw diagnostics."""
     before = {name: _output_state(name, golden) for name in targets}
@@ -1048,6 +1179,17 @@ def _configuration_management(golden=False, hostname=None, filename=None):
                 error = "The saved configuration could not be opened. It may be missing, unreadable, or an unsupported file."
             if filename is not None:
                 status = 404
+    if not golden:
+        context["cisco_sample_available"] = False
+        context["cisco_sample_content"] = None
+        context["cisco_sample_redacted"] = False
+        cisco_path = GENERATED_CONFIGS_PATH / f"{CISCO_SAMPLE_HOSTNAME}.cfg"
+        if cisco_path.is_file():
+            try:
+                context["cisco_sample_content"], context["cisco_sample_redacted"] = _read_configuration(cisco_path)
+                context["cisco_sample_available"] = True
+            except (OSError, ValueError, UnicodeError):
+                pass
     context["error"] = error
     return render_template(endpoint + ".html", **context), status
 
@@ -1055,6 +1197,30 @@ def _configuration_management(golden=False, hostname=None, filename=None):
 @app.route("/configuration", methods=["GET", "POST"])
 def configuration():
     return _configuration_management()
+
+
+@app.post("/configuration/cisco-sample")
+def generate_cisco_sample():
+    """Re-render the Cisco IOS-XE template demonstration; no live device is contacted."""
+    token = session.get("config_csrf")
+    submitted = request.form.get("csrf_token", "")
+    if not isinstance(token, str) or not secrets.compare_digest(submitted.encode("utf-8"), token.encode("utf-8")):
+        flash("This form has expired or could not be verified. Please try again.", "error")
+    elif not _CONFIGURATION_LOCK.acquire(blocking=False):
+        flash("Another configuration operation is running. Please try again after it finishes.", "error")
+    else:
+        try:
+            if _generate_cisco_sample():
+                flash(
+                    "The Cisco IOS-XE sample configuration was regenerated from templates/cisco_iosxe.j2. "
+                    "This is a template demonstration only; no live Cisco device exists.",
+                    "success",
+                )
+            else:
+                flash("The Cisco sample configuration could not be generated.", "error")
+        finally:
+            _CONFIGURATION_LOCK.release()
+    return redirect(url_for("configuration"), code=303)
 
 
 @app.route("/golden-configs", methods=["GET", "POST"])
@@ -1077,17 +1243,66 @@ def protect_configuration_responses(response):
 
 @app.get("/monitoring")
 def monitoring():
-    return _render_page(
-        "Monitoring", "monitoring",
-        "Check network health with monitoring and visualization tools. This feature will be connected in a later phase.",
+    """Point the existing Flask GUI at the existing Grafana monitoring stack."""
+    grafana_url = os.environ.get("GRAFANA_URL", "").strip() or GRAFANA_DEFAULT_URL
+    return render_template(
+        "monitoring.html",
+        page_title="Monitoring",
+        active_page="monitoring",
+        grafana_url=grafana_url,
     )
+
+
+def _generate_topology_snapshot():
+    """Run the existing topology script once via subprocess; never raises."""
+    generic_error = "The topology diagram could not be generated right now. It may be waiting on live telemetry (InfluxDB) or a reachable topology file."
+    try:
+        TOPOLOGY_SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return None, generic_error
+    command = [
+        sys.executable, "-u", str(TOPOLOGY_SCRIPT_PATH),
+        str(TOPOLOGY_FILE_PATH), "--once", "--output", str(TOPOLOGY_SNAPSHOT_PATH),
+    ]
+    try:
+        completed = subprocess.run(
+            command, cwd=BASE_DIR, shell=False, capture_output=True,
+            text=True, encoding="utf-8", errors="replace", timeout=45,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None, "Generating the topology diagram timed out or could not start. InfluxDB or the topology script may be unavailable."
+    if completed.returncode != 0 or not TOPOLOGY_SNAPSHOT_PATH.is_file():
+        return None, generic_error
+    stats = None
+    for line in reversed(completed.stdout.splitlines()):
+        line = line.strip()
+        if line.startswith("{") and line.endswith("}"):
+            try:
+                stats = json.loads(line)
+            except ValueError:
+                stats = None
+            break
+    if not isinstance(stats, dict):
+        return None, generic_error
+    return stats, None
 
 
 @app.get("/topology")
 def topology():
-    return _render_page(
-        "Topology", "topology",
-        "Explore how your network devices connect to each other. This feature will be connected in a later phase.",
+    """Reuse the existing NetworkX/InfluxDB topology script to render a snapshot."""
+    if not TOPOLOGY_FILE_PATH.is_file() or not TOPOLOGY_SCRIPT_PATH.is_file():
+        stats, error = None, "The Containerlab topology file or topology script is not available, so a diagram cannot be generated."
+    else:
+        stats, error = _generate_topology_snapshot()
+    snapshot_available = TOPOLOGY_SNAPSHOT_PATH.is_file()
+    return render_template(
+        "topology.html",
+        page_title="Topology",
+        active_page="topology",
+        error=error,
+        stats=stats,
+        snapshot_available=snapshot_available,
+        snapshot_version=int(datetime.now().timestamp()) if snapshot_available else None,
     )
 
 

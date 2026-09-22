@@ -80,6 +80,36 @@
   </section>
   {% endif %}
   <div class="inventory-help"><i class="bi bi-info-circle" aria-hidden="true"></i><p>“Not specified” means the value is not recorded in the available inventory data. No live device information is requested on this page.</p></div>
+
+  <section class="danger-zone surface" aria-labelledby="danger-zone-title">
+    <div class="detail-card-heading"><span class="detail-section-icon icon-rose"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span><div><h2 id="danger-zone-title">Danger Zone</h2><p>Irreversible inventory actions for this device.</p></div></div>
+    <div class="danger-zone-body">
+      <div class="danger-zone-row">
+        <div><strong>Remove from Inventory</strong><p>Remove this device from the NetPilot Source of Truth. This does not modify or delete the live network device.</p></div>
+        <button type="button" class="btn btn-danger" id="remove-device-open"><i class="bi bi-trash3" aria-hidden="true"></i> Remove from Inventory</button>
+      </div>
+    </div>
+  </section>
+
+  <dialog class="confirm-dialog" id="remove-device-dialog" aria-labelledby="remove-device-dialog-title" aria-describedby="remove-device-dialog-body">
+    <form method="post" action="{{ url_for('remove_device', hostname=device.hostname) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="modal-header"><h2 class="modal-title" id="remove-device-dialog-title">Remove {{ device.hostname }} from NetPilot?</h2></div>
+      <div class="modal-body" id="remove-device-dialog-body"><p>This removes the inventory record only. The live device will not be changed.</p></div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" id="remove-device-cancel">Cancel</button><button type="submit" class="btn btn-danger">Remove Device</button></div>
+    </form>
+  </dialog>
   {% endif %}
 </div>
+
+<script>
+(() => {
+  const dialog = document.getElementById('remove-device-dialog');
+  const openBtn = document.getElementById('remove-device-open');
+  const cancelBtn = document.getElementById('remove-device-cancel');
+  if (!dialog || !openBtn || !cancelBtn) return;
+  openBtn.addEventListener('click', () => dialog.showModal());
+  cancelBtn.addEventListener('click', () => dialog.close());
+})();
+</script>
 {% endblock %}

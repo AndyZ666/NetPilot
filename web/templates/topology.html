@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="inventory-page topology-page">
+  <div class="page-heading">
+    <div><span class="eyebrow">NETWORK TOPOLOGY</span><h1>Topology</h1><p>See how your network devices connect, and whether each link is currently up.</p></div>
+    <a class="btn btn-primary" href="{{ url_for('topology') }}"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh Topology</a>
+  </div>
+
+  <div class="inventory-intro surface">
+    <span class="inventory-intro-icon"><i class="bi bi-diagram-3" aria-hidden="true"></i></span>
+    <div><h2>Where this comes from</h2><p>The devices and layout come from the Containerlab topology file. Each link's color comes from live interface telemetry already being collected in InfluxDB — NetPilot does not invent or guess connections here.</p></div>
+  </div>
+
+  {% if error %}
+  <div class="inventory-alert" role="status"><i class="bi bi-info-circle" aria-hidden="true"></i><div><strong>{{ 'Showing the most recent snapshot' if snapshot_available else 'Topology diagram is unavailable' }}</strong><p>{{ error }}{% if snapshot_available %} The diagram below may not reflect current link status.{% endif %}</p></div></div>
+  {% endif %}
+
+  {% if stats %}
+  <section class="overview-section" aria-labelledby="topology-stats-title">
+    <div class="section-heading"><h2 id="topology-stats-title">Topology overview</h2><span class="section-note"><i class="bi bi-database" aria-hidden="true"></i> From Containerlab + InfluxDB</span></div>
+    <div class="stats-grid">
+      {% set topo_metrics = [
+        ('node_count', 'Devices', 'hdd-network', 'blue'),
+        ('link_count', 'Links', 'diagram-3', 'cyan'),
+        ('up', 'Links up', 'check-circle', 'teal'),
+        ('down', 'Links down', 'x-circle', 'rose'),
+        ('unknown', 'Unknown', 'question-circle', 'amber')
+      ] %}
+      {% for key, label, icon, color in topo_metrics %}
+      <article class="stat-card surface">
+        <div class="stat-top"><span class="stat-label">{{ label }}</span><span class="stat-icon icon-{{ color }}"><i class="bi bi-{{ icon }}" aria-hidden="true"></i></span></div>
+        <div class="stat-value">{{ stats[key] }}</div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="topology-diagram-section surface" aria-labelledby="topology-diagram-title">
+    <div class="inventory-panel-heading">
+      <div><h2 id="topology-diagram-title">Network Diagram</h2><p>Generated from the current Containerlab topology and the latest telemetry available.</p></div>
+    </div>
+    <div class="topology-diagram-body">
+      {% if snapshot_available %}
+      <img class="topology-image" src="{{ url_for('static', filename='generated/topology.png') }}{% if snapshot_version %}?v={{ snapshot_version }}{% endif %}" alt="Network topology diagram showing devices and link status">
+      <div class="topology-legend" aria-label="Link status legend">
+        <span class="topology-legend-item"><span class="topology-legend-dot legend-up" aria-hidden="true"></span> Green = Up</span>
+        <span class="topology-legend-item"><span class="topology-legend-dot legend-down" aria-hidden="true"></span> Red = Down</span>
+        <span class="topology-legend-item"><span class="topology-legend-dot legend-unknown" aria-hidden="true"></span> Gray = Unknown</span>
+      </div>
+      {% else %}
+      <div class="inventory-empty"><span class="inventory-empty-icon"><i class="bi bi-diagram-3" aria-hidden="true"></i></span><h3>No topology diagram yet</h3><p>{{ error or 'A diagram will appear here once it can be generated.' }}</p></div>
+      {% endif %}
+    </div>
+  </section>
+
+  <div class="inventory-help"><i class="bi bi-info-circle" aria-hidden="true"></i><p>A link shows as <strong>Unknown</strong> when NetPilot has no telemetry yet for either side of it — for example, right after startup, or for a device that isn't part of gNMI monitoring.</p></div>
+</div>
+{% endblock %}

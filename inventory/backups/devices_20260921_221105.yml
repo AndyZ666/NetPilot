@@ -1681,6 +1681,31 @@ devices:
         ipv6: {}
       route_maps: {}
     vlans: {}
+  TEST-R10:
+    hostname: TEST-R10
+    role: edge_router
+    vendor: Arista
+    platform: cEOSLab
+    management:
+      ipv4: 172.20.20.100
+    template: templates/arista_ceos.j2
+    interfaces: {}
+    routing:
+      ospfv2:
+        enabled: false
+      ospfv3:
+        enabled: false
+      ripv2:
+        enabled: false
+      bgp:
+        enabled: false
+    redistribution: []
+    policy:
+      prefix_lists:
+        ipv4: {}
+        ipv6: {}
+      route_maps: {}
+    vlans: {}
   Test-S4:
     hostname: Test-S4
     role: access_switch

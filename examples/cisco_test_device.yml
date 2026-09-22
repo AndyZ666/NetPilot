@@ -1,0 +1,31 @@
+# Sample data only, for the Cisco IOS-XE multi-vendor template demonstration.
+# CISCO-R1 is not part of inventory/devices.yml, the live Containerlab topology,
+# Golden Config, monitoring, or gNMI/SNMP -- it exists only to exercise
+# templates/cisco_iosxe.j2 through the existing render_configs.py renderer.
+devices:
+  CISCO-R1:
+    hostname: CISCO-R1
+    role: router
+    vendor: Cisco
+    platform: IOS-XE
+    template: templates/cisco_iosxe.j2
+    interfaces:
+      GigabitEthernet1:
+        description: Template demonstration uplink
+        ipv4:
+          - ip: 10.10.10.1
+            mask: 255.255.255.0
+        ospf_area: 0
+        admin_state: up
+    routing:
+      ospf:
+        enabled: true
+        process_id: 1
+        router_id: 1.1.1.1
+      bgp:
+        enabled: true
+        local_asn: 65010
+        router_id: 1.1.1.1
+        neighbors:
+          - address: 10.10.10.2
+            remote_asn: 65020

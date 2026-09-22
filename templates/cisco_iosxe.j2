@@ -1,0 +1,37 @@
+! ============================================================
+! NetPilot generated configuration
+! Cisco IOS-XE template demonstration -- no live device exists
+! Device: {{ device.hostname }}
+! ============================================================
+!
+hostname {{ device.hostname }}
+!
+{% for ifname, iface in device.interfaces.items() -%}
+interface {{ ifname }}
+{% if iface.description %} description {{ iface.description }}
+{% endif -%}
+{% for address in iface.ipv4 %} ip address {{ address.ip }} {{ address.mask }}
+{% endfor -%}
+{% if iface.ospf_area is defined %} ip ospf {{ device.routing.ospf.process_id }} area {{ iface.ospf_area }}
+{% endif -%}
+{% if iface.admin_state == 'up' %} no shutdown
+{% else %} shutdown
+{% endif %}!
+{% endfor -%}
+{% if device.routing.ospf.enabled -%}
+router ospf {{ device.routing.ospf.process_id }}
+{% if device.routing.ospf.router_id %} router-id {{ device.routing.ospf.router_id }}
+{% endif %}!
+{% endif -%}
+{% if device.routing.bgp.enabled -%}
+router bgp {{ device.routing.bgp.local_asn }}
+{% if device.routing.bgp.router_id %} bgp router-id {{ device.routing.bgp.router_id }}
+{% endif -%}
+{% for nbr in device.routing.bgp.neighbors %} neighbor {{ nbr.address }} remote-as {{ nbr.remote_asn }}
+{% endfor %} !
+ address-family ipv4
+{% for nbr in device.routing.bgp.neighbors %}  neighbor {{ nbr.address }} activate
+{% endfor %} exit-address-family
+!
+{% endif -%}
+end

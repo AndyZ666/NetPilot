@@ -705,3 +705,107 @@ h1, h2, h3, p { margin-top: 0; }
   .config-history-row { gap: 10px; }
   .config-explanation a { margin-left: 0; }
 }
+
+/* Monitoring: the existing Grafana dashboard, opened directly and optionally embedded. */
+.monitoring-page code { padding: 2px 6px; border-radius: 4px; background: #f0f6fb; color: #567e9d; font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 11px; }
+.monitor-topics-section { margin: 29px 0; }
+.monitor-topics-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
+.monitor-topic-card { padding: 21px; }
+.monitor-topic-card .action-icon { margin-bottom: 16px; }
+.monitor-topic-card h3 { margin-bottom: 9px; font-size: 12px; font-weight: 650; letter-spacing: -.15px; }
+.monitor-topic-card p { margin: 0; color: #7a8799; font-size: 10px; line-height: 1.8; }
+.monitor-embed-section { margin-bottom: 24px; overflow: hidden; }
+.monitor-embed-body { padding: 0 24px 24px; }
+.monitor-embed-frame { width: 100%; height: 70vh; min-height: 460px; max-height: 760px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #0b1828; }
+.monitor-embed-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
+.monitor-embed-fallback { margin-top: 18px; }
+.monitor-embed-fallback .btn { margin-top: 14px; }
+.monitor-explanation { max-width: 960px; }
+
+@media (max-width: 1250px) {
+  .monitor-embed-body { padding-right: 20px; padding-left: 20px; }
+}
+@media (max-width: 1100px) {
+  .monitor-topics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .monitoring-page .page-heading { flex-direction: column; align-items: flex-start; }
+  .monitoring-page .page-heading .btn { align-self: stretch; justify-content: center; }
+  .monitor-embed-section .text-link { display: none; }
+  .monitor-embed-body { padding: 0 20px 20px; }
+  .monitor-embed-frame { height: 60vh; min-height: 340px; }
+}
+@media (max-width: 600px) {
+  .monitor-topics-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Topology: NetworkX + InfluxDB diagram, reused as a generated snapshot. */
+.icon-rose { background: #fff5f5; color: #ac6268; }
+.topology-diagram-section { margin-bottom: 24px; overflow: hidden; }
+.topology-diagram-body { padding: 0 24px 24px; }
+.topology-image { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.topology-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; margin-top: 16px; }
+.topology-legend-item { display: inline-flex; align-items: center; gap: 7px; color: #6e7d8f; font-size: 11px; font-weight: 550; }
+.topology-legend-dot { width: 10px; height: 10px; flex-shrink: 0; border-radius: 50%; }
+.legend-up { background: #2f9e5b; }
+.legend-down { background: #d6555f; }
+.legend-unknown { background: #9aa5b6; }
+
+@media (max-width: 1250px) {
+  .topology-diagram-body { padding-right: 20px; padding-left: 20px; }
+}
+@media (max-width: 767px) {
+  .topology-page .page-heading { flex-direction: column; align-items: flex-start; }
+  .topology-page .page-heading .btn { align-self: stretch; justify-content: center; }
+  .topology-diagram-body { padding: 0 20px 20px; }
+  .topology-legend { gap: 14px; }
+}
+
+/* Remove from Inventory: a scoped destructive action on Device Details. */
+.danger-zone { margin-top: 30px; border-color: #f0d6d7; }
+.danger-zone .detail-card-heading { padding: 22px 24px 0; }
+.danger-zone .detail-card-heading h2 { color: #a85560; }
+.danger-zone-body { padding: 18px 24px 24px; }
+.danger-zone-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-top: 18px; border-top: 1px solid #f5e4e5; }
+.danger-zone-row strong { display: block; margin-bottom: 6px; color: #3c4655; font-size: 13px; font-weight: 600; }
+.danger-zone-row p { margin: 0; max-width: 560px; color: #7a8799; font-size: 11px; line-height: 1.8; }
+.btn-danger { flex-shrink: 0; border: 1px solid #c25b64; background: #c25b64; color: #fff; box-shadow: 0 3px 7px #c25b6422; }
+.btn-danger:hover { border-color: #ac4a53; background: #ac4a53; color: #fff; }
+.btn-outline-secondary { border: 1px solid #dfe6f0; background: #fff; color: #62768f; }
+.btn-outline-secondary:hover { border-color: #c3ccd8; background: #f7f9fc; color: #45576d; }
+
+.confirm-dialog { width: min(440px, calc(100% - 40px)); padding: 0; border: 0; border-radius: 12px; box-shadow: 0 20px 45px #17223c33; }
+.confirm-dialog::backdrop { background: #101c30b3; }
+.confirm-dialog .modal-title { font-size: 16px; font-weight: 650; color: #263a51; }
+.confirm-dialog .modal-body p { margin: 0; color: #6e7d8f; font-size: 12px; line-height: 1.8; }
+.confirm-dialog .modal-footer { border-top: 1px solid #edf0f5; }
+
+@media (max-width: 600px) {
+  .danger-zone-row { flex-direction: column; align-items: stretch; }
+  .danger-zone-row .btn-danger { width: 100%; justify-content: center; }
+  .confirm-dialog .modal-footer { flex-direction: column; align-items: stretch; }
+  .confirm-dialog .modal-footer .btn { width: 100%; justify-content: center; }
+}
+
+/* Configuration: multi-vendor template support (Arista live, Cisco sample-only). */
+.template-support-section { margin: 30px 0; }
+.template-support-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; margin-bottom: 15px; }
+.template-card { padding: 21px; }
+.template-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+.template-card-icon { display: grid; place-items: center; width: 39px; height: 39px; border-radius: 9px; font-size: 18px; }
+.template-card h3 { margin-bottom: 9px; font-size: 13px; font-weight: 650; letter-spacing: -.15px; }
+.template-card .template-value { margin-bottom: 10px; }
+.template-card p:last-child { margin: 0; color: #7a8799; font-size: 10px; line-height: 1.8; }
+.cisco-sample-panel { overflow: hidden; }
+.sample-badge { display: inline-flex; align-items: center; margin-left: 10px; padding: 3px 8px; border: 1px solid #f6e9ce; border-radius: 5px; color: #99712a; background: #fff8e9; font-size: 9px; font-weight: 600; vertical-align: middle; }
+.cisco-sample-body { padding: 0 24px 24px; }
+.cisco-sample-body form { margin-bottom: 17px; }
+.cisco-sample-body .config-code { min-height: 220px; }
+
+@media (max-width: 1020px) {
+  .template-support-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .cisco-sample-body { padding: 0 20px 20px; }
+  .cisco-sample-body .btn { width: 100%; justify-content: center; }
+}

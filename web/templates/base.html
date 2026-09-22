@@ -59,7 +59,7 @@
       <main id="main-content" class="main-content" tabindex="-1">
         {% for category, message in get_flashed_messages(with_categories=true) %}
         {% set notice_tone = category if category in ['success', 'warning', 'error'] else 'warning' %}
-        <div class="workspace-notice notice-{{ notice_tone }}" role="{{ 'alert' if notice_tone == 'error' else 'status' }}"><i class="bi bi-{{ 'check-circle' if notice_tone == 'success' else 'exclamation-triangle' if notice_tone == 'warning' else 'exclamation-circle' }}" aria-hidden="true"></i><div><strong>{{ 'Device added successfully.' if notice_tone == 'success' else 'Please review' if notice_tone == 'warning' else 'Unable to complete this request' }}</strong><p>{{ message }}</p></div></div>
+        <div class="workspace-notice notice-{{ notice_tone }}" role="{{ 'alert' if notice_tone == 'error' else 'status' }}"><i class="bi bi-{{ 'check-circle' if notice_tone == 'success' else 'exclamation-triangle' if notice_tone == 'warning' else 'exclamation-circle' }}" aria-hidden="true"></i><div><strong>{{ 'Success' if notice_tone == 'success' else 'Please review' if notice_tone == 'warning' else 'Unable to complete this request' }}</strong><p>{{ message }}</p></div></div>
         {% endfor %}
         {% block content %}{% endblock %}
       </main>
