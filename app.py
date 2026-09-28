@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from urllib.parse import urlencode
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 import yaml
@@ -24,7 +25,7 @@ INVENTORY_PATH = BASE_DIR / "inventory" / "devices.yml"
 CONFIGURATION_TEMPLATES_PATH = BASE_DIR / "templates"
 GOLDEN_CONFIGS_PATH = BASE_DIR / "golden_configs"
 GENERATED_CONFIGS_PATH = BASE_DIR / "generated_configs"
-GRAFANA_DEFAULT_URL = "http://127.0.0.1:3000"
+GRAFANA_DEFAULT_URL = "http://127.0.0.1:3000/d/admtflx/interface-operational-status?from=now-7d&to=now&timezone=browser"
 TOPOLOGY_FILE_PATH = BASE_DIR / "nettopo.clab.yml"
 TOPOLOGY_SCRIPT_PATH = BASE_DIR / "Functions" / "realtime_topology.py"
 TOPOLOGY_SNAPSHOT_PATH = BASE_DIR / "web" / "static" / "generated" / "topology.png"
@@ -1244,12 +1245,27 @@ def protect_configuration_responses(response):
 @app.get("/monitoring")
 def monitoring():
     """Point the existing Flask GUI at the existing Grafana monitoring stack."""
-    grafana_url = os.environ.get("GRAFANA_URL", "").strip() or GRAFANA_DEFAULT_URL
+    configured_grafana_url = os.environ.get("GRAFANA_URL", "").strip()
+    grafana_url = configured_grafana_url or GRAFANA_DEFAULT_URL
+    grafana_panel_url = None
+    if configured_grafana_url:
+        panel_query = urlencode({
+            "panelId": "panel-6",
+            "from": "now-3h",
+            "to": "now",
+            "theme": "light",
+            "refresh": "10s",
+        })
+        grafana_panel_url = (
+            f"{configured_grafana_url.rstrip('/')}/d-solo/admtflx/"
+            f"interface-operational-status?{panel_query}"
+        )
     return render_template(
         "monitoring.html",
         page_title="Monitoring",
         active_page="monitoring",
         grafana_url=grafana_url,
+        grafana_panel_url=grafana_panel_url,
     )
 
 

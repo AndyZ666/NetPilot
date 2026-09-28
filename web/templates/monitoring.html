@@ -54,6 +54,19 @@
     </div>
   </section>
 
+  <section class="monitor-embed-section surface" aria-labelledby="live-monitoring-title">
+    <div class="inventory-panel-heading">
+      <div><h2 id="live-monitoring-title">Live Monitoring</h2><p>Active Devices</p></div>
+    </div>
+    <div class="monitor-embed-body">
+      {% if grafana_panel_url %}
+      <div class="monitor-embed-frame"><iframe src="{{ grafana_panel_url }}" title="Active Devices" loading="lazy" frameborder="0"></iframe></div>
+      {% else %}
+      <div class="inventory-help" role="status"><i class="bi bi-info-circle" aria-hidden="true"></i><p>Live monitoring is not configured yet. Set GRAFANA_URL before starting NetPilot to display Active Devices.</p></div>
+      {% endif %}
+    </div>
+  </section>
+
   <div class="inventory-help monitor-explanation"><i class="bi bi-info-circle" aria-hidden="true"></i><p><strong>NetPilot does not store or process monitoring data.</strong> All telemetry is collected and displayed by the existing gNMI, Telegraf, InfluxDB, and Grafana stack; this page only gives you a convenient way to reach it.</p></div>
 </div>
 {% endblock %}
