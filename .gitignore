@@ -39,6 +39,9 @@ query.csv
 *.log.gz
 logs/
 
+# Local configuration-change audit records
+/config_changes/
+
 # Temporary files
 *.tmp
 *.swp

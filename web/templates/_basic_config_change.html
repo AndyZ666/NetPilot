@@ -1,0 +1,212 @@
+{% macro basic_change_label(value) -%}
+  {% set label = namespace(value=value|replace('_', ' ')|title) %}
+  {% for choice in basic_change_choices %}{% if choice.value == value %}{% set label.value = choice.label %}{% endif %}{% endfor %}
+  {{- label.value -}}
+{%- endmacro %}
+{% macro basic_change_value(value) -%}
+  {% if value is none %}Not recorded{% elif value is mapping or (value is sequence and value is not string) %}{{ value|tojson(indent=2) }}{% elif value == '' %}No description configured{% else %}{{ value }}{% endif %}
+{%- endmacro %}
+{% set basic_type = basic_form.get('change_type', '') %}
+{% set basic_selected = namespace(device=none, interface=none) %}
+{% for device in basic_devices %}{% if device.hostname == basic_form.get('device') %}{% set basic_selected.device = device %}{% for interface in device.interfaces %}{% if interface.name == basic_form.get('interface') %}{% set basic_selected.interface = interface %}{% endif %}{% endfor %}{% endif %}{% endfor %}
+
+<section class="basic-change-section" id="basic-config-change" aria-labelledby="basic-change-title">
+  <div class="section-heading"><div><h2 id="basic-change-title">Basic Config Change</h2><p>Preview and confirm one supported change to one live device.</p></div><span class="inventory-source"><i class="bi bi-pencil-square" aria-hidden="true"></i> Live configuration</span></div>
+  <p class="basic-change-workflow">Select change <i class="bi bi-arrow-right" aria-hidden="true"></i> Preview <i class="bi bi-arrow-right" aria-hidden="true"></i> Confirm <i class="bi bi-arrow-right" aria-hidden="true"></i> Backup <i class="bi bi-arrow-right" aria-hidden="true"></i> Apply <i class="bi bi-arrow-right" aria-hidden="true"></i> Verify <i class="bi bi-arrow-right" aria-hidden="true"></i> Log result</p>
+
+  {% if basic_error %}
+  <div class="workspace-notice notice-error" role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><div><strong>Unable to prepare this change</strong><p>{{ basic_error }}</p></div></div>
+  {% endif %}
+  {% if basic_result %}
+  {% set fully_successful = basic_result.apply_status == 'applied' and basic_result.verification_status == 'passed' and basic_result.nsot_status == 'updated' and not basic_result.error %}
+  {% set result_warning = not fully_successful and basic_result.apply_status in ['applied', 'unknown'] %}
+  <section class="basic-change-result workspace-notice notice-{{ 'success' if fully_successful else 'warning' if result_warning else 'error' }}" role="{{ 'status' if fully_successful else 'alert' }}" aria-labelledby="basic-result-title">
+    <i class="bi bi-{{ 'check-circle' if fully_successful else 'exclamation-triangle' if result_warning else 'exclamation-circle' }}" aria-hidden="true"></i>
+    <div>
+      <strong id="basic-result-title">{% if fully_successful %}Configuration Change Successful{% elif basic_result.apply_status == 'unknown' %}Configuration state requires review{% elif basic_result.apply_status == 'applied' and basic_result.verification_status != 'passed' %}Configuration applied but verification did not pass{% elif basic_result.apply_status == 'applied' %}Configuration applied; follow-up required{% else %}Configuration change failed{% endif %}</strong>
+      <p>{{ basic_result.device }} · {{ basic_change_label(basic_result.change_type) }}{% if basic_result.interface %} · {{ basic_result.interface }}{% endif %}</p>
+      <ul class="basic-change-steps">
+        {% for stage, status, expected, success_label in [('Backup', basic_result.backup_status, 'saved', 'Pre-change backup saved'), ('Apply', basic_result.apply_status, 'applied', 'Configuration applied'), ('Verification', basic_result.verification_status, 'passed', 'Verification passed'), ('NSOT', basic_result.nsot_status, 'updated', 'NSOT updated')] %}
+        <li><i class="bi bi-{{ 'check-circle' if status == expected else 'dash-circle' if status == 'not_attempted' else 'exclamation-triangle' }}" aria-hidden="true"></i><span>{% if status == expected %}{{ success_label }}{% elif status == 'not_attempted' %}{{ stage }}: not attempted{% elif status == 'unknown' %}{{ stage }}: outcome unknown{% else %}{{ stage }}: {{ status|replace('_', ' ') }}{% endif %}</span></li>
+        {% endfor %}
+      </ul>
+      {% if basic_result.error %}<p>{{ basic_result.error }}</p>{% endif %}
+      {% if basic_result.backup_file %}<p class="basic-change-backup"><strong>Pre-change backup</strong> <code>{{ basic_result.backup_file }}</code></p>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="basic-change-workspace">
+    <section class="inventory-panel surface" aria-labelledby="basic-form-title">
+      <div class="inventory-panel-heading"><div><h3 id="basic-form-title">Choose a change</h3><p>Current interface values below come from the Source of Truth.</p></div></div>
+      <form class="basic-change-form" id="basic-change-form" action="{{ url_for('preview_basic_change') }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ basic_csrf_token }}">
+        <div class="basic-change-fields">
+          <div class="config-field"><label for="basic-device">Device</label><select class="form-select" id="basic-device" name="device" required{% if not basic_devices %} disabled{% endif %}><option value="">Select a device</option>{% for device in basic_devices %}<option value="{{ device.hostname }}"{% if device.hostname == basic_form.get('device') %} selected{% endif %}>{{ device.hostname }}</option>{% endfor %}</select></div>
+          <div class="config-field"><label for="basic-change-type">Change Type</label><select class="form-select" id="basic-change-type" name="change_type" required{% if not basic_devices %} disabled{% endif %}><option value="">Select a change</option>{% for choice in basic_change_choices %}<option value="{{ choice.value }}"{% if choice.value == basic_type %} selected{% endif %}>{{ choice.label }}</option>{% endfor %}</select></div>
+        </div>
+        <fieldset class="basic-change-group" id="basic-interface-fields"{% if basic_type not in ['interface_description', 'interface_admin_state'] %} hidden disabled{% endif %}>
+          <legend class="visually-hidden">Existing interface</legend>
+          <div class="config-field"><label for="basic-interface">Interface</label><select class="form-select" name="interface" id="basic-interface" required><option value="">Select an interface</option>{% if basic_selected.device %}{% for interface in basic_selected.device.interfaces %}<option value="{{ interface.name }}"{% if interface.name == basic_form.get('interface') %} selected{% endif %}>{{ interface.name }}</option>{% endfor %}{% endif %}</select><small id="basic-interface-help">Choose an interface recorded for this device in the NSOT.</small></div>
+        </fieldset>
+        <fieldset class="basic-change-group" id="basic-description-fields"{% if basic_type != 'interface_description' %} hidden disabled{% endif %}>
+          <legend class="visually-hidden">Interface description</legend>
+          <div class="config-field"><label for="basic-current-description">Current Description <span class="basic-change-source">NSOT</span></label><output class="basic-change-current" id="basic-current-description" for="basic-device basic-interface">{% if basic_selected.interface %}{{ basic_change_value(basic_selected.interface.description) }}{% else %}Select an interface{% endif %}</output></div>
+          <div class="config-field"><label for="basic-new-description">New Description</label><input class="form-control" id="basic-new-description" name="new_description" type="text" maxlength="240" value="{{ basic_form.get('new_description', '') }}" required><small>Enter a nonempty description on one line.</small></div>
+        </fieldset>
+        <fieldset class="basic-change-group" id="basic-admin-fields"{% if basic_type != 'interface_admin_state' %} hidden disabled{% endif %}>
+          <legend class="visually-hidden">Interface admin state</legend>
+          <div class="config-field"><label for="basic-current-admin">Current Admin State <span class="basic-change-source">NSOT</span></label><output class="basic-change-current" id="basic-current-admin" for="basic-device basic-interface">{% if basic_selected.interface %}{{ basic_selected.interface.admin_state|default('Not recorded', true)|replace('_', ' ')|title }}{% else %}Select an interface{% endif %}</output></div>
+          <div class="config-field"><label for="basic-new-admin">New Admin State</label><select class="form-select" id="basic-new-admin" name="new_admin_state" required><option value="">Select a state</option><option value="up"{% if basic_form.get('new_admin_state') == 'up' %} selected{% endif %}>Up</option><option value="down"{% if basic_form.get('new_admin_state') == 'down' %} selected{% endif %}>Down</option></select></div>
+        </fieldset>
+        <fieldset class="basic-change-group" id="basic-loopback-fields"{% if basic_type != 'create_loopback' %} hidden disabled{% endif %}>
+          <legend class="visually-hidden">New loopback interface</legend>
+          <div class="basic-change-fields">
+            <div class="config-field"><label for="basic-loopback-id">Loopback ID</label><input class="form-control" type="number" id="basic-loopback-id" name="loopback_id" min="0" max="1000" step="1" value="{{ basic_form.get('loopback_id', '') }}" required></div>
+            <div class="config-field"><label for="basic-prefix-length">Prefix Length</label><input class="form-control" type="number" id="basic-prefix-length" name="prefix_length" min="0" max="32" step="1" value="{{ basic_form.get('prefix_length', '32') }}" required></div>
+          </div>
+          <div class="config-field"><label for="basic-ipv4">IPv4 Address</label><input class="form-control" type="text" id="basic-ipv4" name="ipv4" value="{{ basic_form.get('ipv4', '') }}" placeholder="10.255.3.1" maxlength="15" required><small>The address and loopback must be unused in the inventory.</small></div>
+          <div class="config-field"><label for="basic-loopback-description">Description <span class="basic-change-source">Optional</span></label><input class="form-control" type="text" id="basic-loopback-description" name="description" maxlength="240" value="{{ basic_form.get('description', '') }}"></div>
+        </fieldset>
+        {% if not basic_devices %}<p class="config-notice">No supported devices are available for a basic configuration change.</p>{% endif %}
+        <noscript><p class="config-notice">Enable JavaScript to select the fields for a configuration change.</p></noscript>
+        <button class="btn btn-outline-primary" type="submit" id="basic-preview-button" disabled><i class="bi bi-eye" aria-hidden="true"></i> Preview Change</button>
+        <p class="basic-change-help">Preview checks your request and shows the commands before you confirm a live change.</p>
+      </form>
+    </section>
+
+    <section class="basic-change-preview surface" aria-labelledby="basic-preview-title">
+      <div class="inventory-panel-heading"><div><h3 id="basic-preview-title">Preview</h3><p>Review the device, values, and generated commands.</p></div></div>
+      {% if basic_preview %}
+      <div class="basic-change-preview-body">
+        <dl class="config-selection-meta basic-change-preview-meta">
+          <div><dt>Device</dt><dd>{{ basic_preview.device }}</dd></div>
+          <div><dt>Change</dt><dd>{{ basic_change_label(basic_preview.change_type) }}</dd></div>
+          <div><dt>Interface</dt><dd>{{ basic_preview.interface }}</dd></div>
+          <div><dt>Current value (NSOT)</dt><dd class="basic-change-value">{{ basic_change_value(basic_preview.old_value) }}</dd></div>
+          <div><dt>Requested value</dt><dd class="basic-change-value">{{ basic_change_value(basic_preview.new_value) }}</dd></div>
+        </dl>
+        <pre class="config-code basic-change-code" tabindex="0" aria-label="Generated configuration change commands"><code>{{ basic_preview.generated_commands|join('\n') }}</code></pre>
+        <div class="workspace-notice notice-warning" id="basic-preview-stale" role="status" hidden><i class="bi bi-arrow-repeat" aria-hidden="true"></i><div><strong>Preview this change again</strong><p>Your selections have changed. Generate a new preview before applying.</p></div></div>
+        <form class="basic-change-apply" id="basic-apply-form" action="{{ url_for('apply_basic_change') }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ basic_csrf_token }}">
+          <input type="hidden" name="change_id" value="{{ basic_preview.change_id }}">
+          <label class="basic-change-confirm" for="basic-confirm"><input class="form-check-input" type="checkbox" id="basic-confirm" name="confirm" value="yes" required><span>I confirm this live configuration change on <strong>{{ basic_preview.device }}</strong> using the commands shown above.</span></label>
+          <p class="basic-change-help">NetPilot saves a pre-change backup, applies and verifies the change, then updates the NSOT after successful verification.</p>
+          <button class="btn btn-primary" type="submit" id="basic-apply-button" disabled><i class="bi bi-check2-circle" aria-hidden="true"></i> Apply Confirmed Change</button>
+        </form>
+      </div>
+      {% else %}
+      <div class="inventory-empty"><span class="inventory-empty-icon"><i class="bi bi-eye" aria-hidden="true"></i></span><h3>Review before applying</h3><p>Choose a device and change, then preview the generated commands. Applying requires a separate confirmation.</p></div>
+      {% endif %}
+    </section>
+  </div>
+
+  <section class="basic-change-history surface" aria-labelledby="basic-history-title">
+    <div class="inventory-panel-heading"><div><h3 id="basic-history-title">Recent Changes</h3><p>Latest attempts and their application, verification, and inventory outcomes.</p></div></div>
+    {% if basic_history_error %}<div class="basic-change-history-notice"><div class="workspace-notice notice-warning" role="status"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><div><strong>Change history is unavailable</strong><p>{{ basic_history_error }}</p></div></div></div>{% endif %}
+    {% if basic_history %}
+    <div class="basic-change-table-scroll" tabindex="0" role="region" aria-label="Recent configuration changes"><table class="basic-change-table"><caption class="visually-hidden">Recent live configuration change attempts, newest first</caption><thead><tr><th scope="col">Device / Interface</th><th scope="col">Time</th><th scope="col">Change</th><th scope="col">Apply</th><th scope="col">Verification</th><th scope="col">NSOT</th></tr></thead><tbody>
+      {% for change in basic_history %}
+      <tr><td><strong>{{ change.device }}</strong>{% if change.interface %}<span class="basic-change-history-detail">{{ change.interface }}</span>{% endif %}</td><td><time>{{ change.timestamp }}</time></td><td>{{ basic_change_label(change.change_type) }}</td>{% for status, expected in [(change.apply_status, 'applied'), (change.verification_status, 'passed'), (change.nsot_status, 'updated')] %}<td><span class="basic-change-status is-{{ 'success' if status == expected else 'pending' if status == 'not_attempted' else 'warning' if status == 'unknown' else 'error' }}">{{ status|replace('_', ' ')|capitalize }}</span></td>{% endfor %}</tr>
+      {% if change.error %}<tr class="basic-change-history-error"><td colspan="6"><i class="bi bi-info-circle" aria-hidden="true"></i> {{ change.error }}</td></tr>{% endif %}
+      {% endfor %}
+    </tbody></table></div>
+    {% elif not basic_history_error %}<p class="basic-change-history-empty">No configuration changes have been recorded yet.</p>{% endif %}
+  </section>
+</section>
+
+<script>
+(() => {
+  const devices = {{ basic_devices|tojson }};
+  const form = document.getElementById('basic-change-form');
+  const deviceField = document.getElementById('basic-device');
+  const changeField = document.getElementById('basic-change-type');
+  const interfaceField = document.getElementById('basic-interface');
+  const applyForm = document.getElementById('basic-apply-form');
+  const confirmField = document.getElementById('basic-confirm');
+  const applyButton = document.getElementById('basic-apply-button');
+  const previewButton = document.getElementById('basic-preview-button');
+  let previewChanged = false;
+
+  function selectedDevice() {
+    return devices.find(device => device.hostname === deviceField.value);
+  }
+
+  function populateInterfaces(retainSelection) {
+    const selected = retainSelection ? interfaceField.value : '';
+    interfaceField.replaceChildren(new Option('Select an interface', ''));
+    const device = selectedDevice();
+    for (const iface of device ? device.interfaces : []) {
+      interfaceField.add(new Option(iface.name, iface.name));
+    }
+    interfaceField.value = selected;
+    document.getElementById('basic-interface-help').textContent = device && !device.interfaces.length
+      ? 'No interfaces are recorded for this device in the NSOT.'
+      : 'Choose an interface recorded for this device in the NSOT.';
+  }
+
+  function updateCurrentValues() {
+    const device = selectedDevice();
+    const iface = device && device.interfaces.find(entry => entry.name === interfaceField.value);
+    document.getElementById('basic-current-description').textContent = !iface ? 'Select an interface'
+      : iface.description == null ? 'Not recorded' : iface.description === '' ? 'No description configured' : iface.description;
+    document.getElementById('basic-current-admin').textContent = !iface ? 'Select an interface'
+      : iface.admin_state === 'up' ? 'Up' : iface.admin_state === 'down' ? 'Down' : 'Not recorded';
+  }
+
+  function updateGroups() {
+    const type = changeField.value;
+    const active = {
+      'basic-interface-fields': type === 'interface_description' || type === 'interface_admin_state',
+      'basic-description-fields': type === 'interface_description',
+      'basic-admin-fields': type === 'interface_admin_state',
+      'basic-loopback-fields': type === 'create_loopback'
+    };
+    for (const [id, enabled] of Object.entries(active)) {
+      const group = document.getElementById(id);
+      group.hidden = !enabled;
+      group.disabled = !enabled || !selectedDevice();
+    }
+    previewButton.disabled = !selectedDevice() || !Object.values(active).some(Boolean);
+    updateCurrentValues();
+  }
+
+  function invalidatePreview() {
+    if (!applyForm) return;
+    previewChanged = true;
+    confirmField.checked = false;
+    confirmField.disabled = true;
+    applyButton.disabled = true;
+    applyForm.hidden = true;
+    document.getElementById('basic-preview-stale').hidden = false;
+  }
+
+  function formSnapshot() {
+    return JSON.stringify(Array.from(new FormData(form).entries()));
+  }
+
+  populateInterfaces(true);
+  updateGroups();
+  const previewFormSnapshot = formSnapshot();
+  form.addEventListener('input', invalidatePreview);
+  form.addEventListener('change', invalidatePreview);
+  deviceField.addEventListener('change', () => { populateInterfaces(false); updateGroups(); });
+  changeField.addEventListener('change', updateGroups);
+  interfaceField.addEventListener('change', updateCurrentValues);
+  if (applyForm) {
+    confirmField.addEventListener('change', () => {
+      applyButton.disabled = previewChanged || !confirmField.checked;
+    });
+    applyForm.addEventListener('submit', event => {
+      if (previewChanged || formSnapshot() !== previewFormSnapshot || !confirmField.checked) {
+        event.preventDefault();
+        invalidatePreview();
+        return;
+      }
+      applyButton.disabled = true;
+      applyButton.textContent = 'Applying and verifying…';
+    });
+  }
+})();
+</script>

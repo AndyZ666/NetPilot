@@ -137,14 +137,6 @@ devices:
         ipv6:
         - 3fff:172:20:20::d/64
         peer: null
-      Loopback1:
-        description: null
-        admin_state: up
-        forwarding_model: routed
-        ipv4:
-        - 1.1.1.1/32
-        ipv6: []
-        peer: null
     routing:
       ospfv2:
         enabled: true

@@ -14,10 +14,13 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from urllib.parse import urlencode
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 import yaml
+
+import config_changes
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -76,6 +79,10 @@ DEVICE_FORM_FIELDS = (
     "ospfv3_router_id", "bgp_local_asn", "bgp_router_id",
 )
 _INVENTORY_WRITE_LOCK = threading.Lock()
+_BASIC_CHANGE_FIELDS = (
+    "device", "change_type", "interface", "new_description", "new_admin_state",
+    "loopback_id", "ipv4", "prefix_length", "description",
+)
 
 
 class DeviceValidationError(ValueError):
@@ -1181,6 +1188,7 @@ def _configuration_management(golden=False, hostname=None, filename=None):
             if filename is not None:
                 status = 404
     if not golden:
+        context.update(_basic_change_context(inventory, selected))
         context["cisco_sample_available"] = False
         context["cisco_sample_content"] = None
         context["cisco_sample_redacted"] = False
@@ -1198,6 +1206,118 @@ def _configuration_management(golden=False, hostname=None, filename=None):
 @app.route("/configuration", methods=["GET", "POST"])
 def configuration():
     return _configuration_management()
+
+
+def _basic_change_context(inventory, selected_hostname=""):
+    """Provide only interface facts needed by the controlled change form."""
+    token = session.get("basic_change_csrf")
+    if not isinstance(token, str):
+        token = session["basic_change_csrf"] = secrets.token_hex(32)
+    form = {field: "" for field in _BASIC_CHANGE_FIELDS}
+    form.update(device=selected_hostname, change_type="interface_description",
+                new_admin_state="up", prefix_length="32")
+    form.update(session.get("basic_change_form", {}))
+    records = _mapping(_mapping(inventory).get("devices"))
+    devices = []
+    for hostname, record in records.items():
+        if not isinstance(hostname, str) or not _SAFE_HOSTNAME.fullmatch(hostname):
+            continue
+        interfaces = [
+            {"name": name, "description": _text(_mapping(interface).get("description")),
+             "admin_state": _text(_mapping(interface).get("admin_state"))}
+            for name, interface in _mapping(_mapping(record).get("interfaces")).items()
+            if isinstance(name, str)
+        ]
+        devices.append({"hostname": hostname, "interfaces": interfaces})
+    history_error = None
+    try:
+        history = config_changes.recent_changes(limit=10)
+    except config_changes.ChangeError as error:
+        history, history_error = [], str(error)
+    return {
+        "basic_devices": devices,
+        "basic_change_choices": [
+            {"value": value, "label": details["label"]}
+            for value, details in config_changes.SUPPORTED_CHANGES.items()
+        ],
+        "basic_form": form, "basic_csrf_token": token,
+        "basic_preview": session.get("basic_change_preview"),
+        "basic_error": session.pop("basic_change_error", None),
+        "basic_result": session.pop("basic_change_result", None),
+        "basic_history": history, "basic_history_error": history_error,
+    }
+
+
+def _basic_change_csrf_valid():
+    expected = session.get("basic_change_csrf")
+    submitted = request.form.get("csrf_token", "")
+    return isinstance(expected, str) and secrets.compare_digest(
+        expected.encode("utf-8"), submitted.encode("utf-8"),
+    )
+
+
+def _basic_change_redirect():
+    return redirect(url_for("configuration", _anchor="basic-config-change"), code=303)
+
+
+@app.post("/configuration/basic/preview")
+def preview_basic_change():
+    if not _basic_change_csrf_valid():
+        session["basic_change_error"] = "This form could not be verified. Reload the page and try again."
+        return _basic_change_redirect()
+    # A new preview always invalidates the previous choice, even if validation fails.
+    session.pop("basic_change_preview", None)
+    session.pop("basic_change_result", None)
+    session["basic_change_form"] = {
+        field: request.form.get(field, "")[:241] for field in _BASIC_CHANGE_FIELDS
+    }
+    if not session["basic_change_form"]["prefix_length"]:
+        session["basic_change_form"]["prefix_length"] = "32"
+    try:
+        session["basic_change_preview"] = config_changes.validate_change(request.form)
+        session.pop("basic_change_error", None)
+    except config_changes.ChangeError as error:
+        session["basic_change_error"] = str(error)
+    return _basic_change_redirect()
+
+
+@app.post("/configuration/basic/apply")
+def apply_basic_change():
+    if not _basic_change_csrf_valid():
+        session["basic_change_error"] = "This form could not be verified. Reload the page and try again."
+        return _basic_change_redirect()
+    preview = session.get("basic_change_preview")
+    if not isinstance(preview, dict) or request.form.get("change_id") != preview.get("change_id"):
+        session["basic_change_error"] = "Preview this change before applying it."
+        return _basic_change_redirect()
+    created_at = preview.get("created_at")
+    if not isinstance(created_at, (int, float)) or not 0 <= time.time() - created_at <= 600:
+        session.pop("basic_change_preview", None)
+        session["basic_change_error"] = "This preview has expired. Preview the change again before applying it."
+        return _basic_change_redirect()
+    if request.form.get("confirm") != "yes":
+        session["basic_change_error"] = "Confirm the previewed live device change before applying it."
+        return _basic_change_redirect()
+    if not _CONFIGURATION_LOCK.acquire(blocking=False):
+        session["basic_change_error"] = "Another configuration operation is running. Please try again after it finishes."
+        return _basic_change_redirect()
+    try:
+        # Trust only the signed preview, never commands or replacement fields in Apply.
+        session.pop("basic_change_preview", None)
+        session.pop("basic_change_error", None)
+        with _INVENTORY_WRITE_LOCK:
+            session["basic_change_result"] = config_changes.apply_change(preview)
+    except config_changes.ChangeError as error:
+        session["basic_change_error"] = str(error)
+    except Exception:
+        # A lost response must never be described as a confirmed failure or success.
+        session["basic_change_error"] = (
+            "The change outcome could not be confirmed. Check the live device and "
+            "Recent Changes before creating another preview."
+        )
+    finally:
+        _CONFIGURATION_LOCK.release()
+    return _basic_change_redirect()
 
 
 @app.post("/configuration/cisco-sample")

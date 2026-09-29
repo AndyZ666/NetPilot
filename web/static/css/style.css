@@ -809,3 +809,72 @@ h1, h2, h3, p { margin-top: 0; }
   .cisco-sample-body { padding: 0 20px 20px; }
   .cisco-sample-body .btn { width: 100%; justify-content: center; }
 }
+
+/* Basic Config Change: preview and confirm one supported live device change. */
+.basic-change-section { margin: 32px 0; }
+.basic-change-section [hidden] { display: none !important; }
+.basic-change-workflow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 20px; color: #71849b; font-size: 11px; line-height: 1.9; }
+.basic-change-workflow .bi { color: #a0aebe; font-size: 10px; }
+.basic-change-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); align-items: start; gap: 22px; }
+.basic-change-workspace > section { min-width: 0; overflow: hidden; }
+.basic-change-section .inventory-panel-heading h3 { margin: 0 0 7px; color: #263a51; font-size: 16px; font-weight: 650; letter-spacing: -.3px; }
+.basic-change-form { display: flex; flex-direction: column; gap: 20px; padding: 0 24px 24px; }
+.basic-change-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.basic-change-group { display: flex; min-width: 0; flex-direction: column; gap: 20px; margin: 0; padding: 0; border: 0; }
+.basic-change-form .config-field small { display: block; margin-top: 8px; color: #8593a5; font-size: 10px; line-height: 1.7; }
+.basic-change-form .form-control { width: 100%; min-width: 0; min-height: 44px; padding: 11px 13px; border: 1px solid #dfe6f0; border-radius: 7px; background-color: #fff; color: #4c6684; font-family: inherit; font-size: 12px; line-height: 1.7; }
+.basic-change-form .form-control:focus { border-color: #9fc3e9; outline: 0; box-shadow: 0 0 0 3px #3985e012; }
+.basic-change-form .form-control:disabled { background: #f6f8fb; color: #94a1b1; }
+.basic-change-form .form-control::placeholder { color: #a2aec0; opacity: 1; }
+.basic-change-source { display: inline-block; margin-left: 5px; color: #8b9bad; font-size: 10px; font-weight: 400; }
+.basic-change-current { display: block; min-height: 42px; padding: 11px 13px; border: 1px solid #e9edf3; border-radius: 7px; background: #f8fafc; color: #687e96; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.basic-change-help { margin: 0; color: #7b8b9f; font-size: 11px; line-height: 1.8; }
+.basic-change-form > .btn { align-self: flex-start; }
+.basic-change-preview .inventory-empty { min-height: 320px; }
+.basic-change-preview-body { padding: 0 24px 24px; }
+.basic-change-preview-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 0 20px; padding-top: 0; border-top: 0; }
+.basic-change-preview-meta > div:last-child { grid-column: 1 / -1; }
+.basic-change-value { white-space: pre-wrap; }
+.basic-change-section .basic-change-code { min-height: 110px; max-height: 320px; margin-bottom: 20px; padding: 18px 20px; border-radius: 8px; font-size: 12px; }
+.basic-change-apply { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+.basic-change-confirm { display: flex; align-items: flex-start; gap: 11px; margin: 0; color: #506b89; font-size: 12px; line-height: 1.8; cursor: pointer; }
+.basic-change-confirm .form-check-input { width: 16px; height: 16px; flex-shrink: 0; margin-top: 3px; border-color: #b6c9dc; }
+.basic-change-confirm .form-check-input:checked { border-color: #397ed0; background-color: #397ed0; }
+.basic-change-confirm .form-check-input:focus-visible { outline: 2px solid #1998d7; outline-offset: 3px; }
+.basic-change-result > div { min-width: 0; }
+.basic-change-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 22px; margin: 15px 0; padding: 0; list-style: none; }
+.basic-change-steps li { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 1.7; }
+.basic-change-steps .bi { flex-shrink: 0; margin-top: 2px; }
+.basic-change-backup code { display: block; margin-top: 5px; color: inherit; font-size: 11px; overflow-wrap: anywhere; }
+.basic-change-history { margin-top: 22px; overflow: hidden; }
+.basic-change-history-notice { padding: 0 24px; }
+.basic-change-table-scroll { overflow-x: auto; }
+.basic-change-table { width: 100%; border-collapse: collapse; color: #667c94; font-size: 11px; }
+.basic-change-table th { padding: 12px 16px; border-top: 1px solid #edf1f6; border-bottom: 1px solid #edf1f6; background: #f8fafd; color: #8292a5; font-size: 10px; font-weight: 550; text-align: left; white-space: nowrap; }
+.basic-change-table td { padding: 15px 16px; border-bottom: 1px solid #edf1f6; vertical-align: top; line-height: 1.8; }
+.basic-change-table th:first-child, .basic-change-table td:first-child { padding-left: 24px; }
+.basic-change-table th:last-child, .basic-change-table td:last-child { padding-right: 24px; }
+.basic-change-table tr:last-child td { border-bottom: 0; }
+.basic-change-table time { white-space: nowrap; }
+.basic-change-history-detail { display: block; color: #8a99ab; font-size: 10px; }
+.basic-change-status { display: inline-block; padding: 3px 8px; border-radius: 5px; font-size: 10px; line-height: 1.6; white-space: nowrap; }
+.basic-change-status.is-success { background: #edf8f3; color: #46866b; }
+.basic-change-status.is-pending { background: #f0f4f8; color: #7c8ea4; }
+.basic-change-status.is-warning { background: #fff7e8; color: #9f7c3c; }
+.basic-change-status.is-error { background: #fff0f1; color: #af6571; }
+.basic-change-table .basic-change-history-error td { padding-top: 0; color: #97683d; font-size: 11px; }
+.basic-change-history-empty { margin: 0; padding: 0 24px 24px; color: #8392a5; font-size: 12px; line-height: 1.8; }
+
+@media (max-width: 1150px) {
+  .basic-change-workspace { grid-template-columns: minmax(0, 1fr); }
+  .basic-change-preview .inventory-empty { min-height: 230px; }
+}
+@media (max-width: 600px) {
+  .basic-change-section > .section-heading { align-items: flex-start; flex-direction: column; }
+  .basic-change-form, .basic-change-preview-body { padding-right: 20px; padding-left: 20px; }
+  .basic-change-fields, .basic-change-steps { grid-template-columns: minmax(0, 1fr); }
+  .basic-change-form > .btn, .basic-change-apply > .btn { align-self: stretch; justify-content: center; width: 100%; }
+  .basic-change-preview-meta { grid-template-columns: minmax(0, 1fr); }
+  .basic-change-history-notice { padding-right: 20px; padding-left: 20px; }
+  .basic-change-history-empty { padding-right: 20px; padding-left: 20px; }
+}
