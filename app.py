@@ -19,9 +19,6 @@ from urllib.parse import urlencode
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 import yaml
-
-
-
 import config_changes
 
 
