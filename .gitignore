@@ -18,6 +18,7 @@ __pycache__/
 
 # Local credential/token files
 scriptes.txt
+zzprompt.txt
 
 # Secrets / credentials
 secrets/
@@ -33,6 +34,7 @@ clab-*/
 
 # Temporary query/export files
 query.csv
+zzprompt.txt
 
 # Logs
 *.log
@@ -41,6 +43,9 @@ logs/
 
 # Local configuration-change audit records
 /config_changes/
+
+# Local RCN-5840 rollback journal and completion records
+/runtime/maintenance/
 
 # Temporary files
 *.tmp
