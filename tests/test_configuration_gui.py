@@ -42,9 +42,6 @@ class Phase5DSafety(unittest.TestCase):
     def post(self, page, action, hostname='R1', **kwargs):
         return self.client.post(page, data={'csrf_token': 'fixture-csrf', 'action': action, 'hostname': hostname}, follow_redirects=True, **kwargs)
 
-    def creds(self):
-        self.enterContext(patch.dict(os.environ, {'NETPILOT_USERNAME': 'fixture-login', 'NETPILOT_PASSWORD': 'fixture-password'}))
-
     def snap(self, filename='R1_20260921_164113.cfg', text='hostname R1\ninterface Ethernet1\n description line one\n', host='R1'):
         folder = self.golden / host
         folder.mkdir(exist_ok=True)
@@ -61,14 +58,12 @@ class Phase5DSafety(unittest.TestCase):
         self.runner.assert_not_called()
 
     def test_post_csrf_required(self):
-        self.creds()
         for page, action in [('/configuration', 'generate'), ('/golden-configs', 'capture')]:
             response = self.client.post(page, data={'hostname': 'R1', 'action': action}, follow_redirects=True)
             self.assertLess(response.status_code, 500)
         self.runner.assert_not_called()
 
     def test_unknown_host_cannot_run_backend(self):
-        self.creds()
         for page, action in [('/configuration', 'generate'), ('/golden-configs', 'capture')]:
             for hostname in ['UNKNOWN', '../R1', '--help', 'R1;bad', '']:
                 with self.subTest(page=page, hostname=hostname):
@@ -76,14 +71,13 @@ class Phase5DSafety(unittest.TestCase):
                     self.assertLess(response.status_code, 500)
         self.runner.assert_not_called()
 
-    def test_missing_credentials(self):
+    def test_golden_uses_backend_without_legacy_environment_credentials(self):
         response = self.post('/golden-configs', 'capture')
         self.assertLess(response.status_code, 500)
-        self.assertIn(b'Device credentials are not currently available', response.data)
-        self.runner.assert_not_called()
+        self.assertIn(b'1Password credential access', response.data)
+        self.runner.assert_called_once()
 
     def test_backend_exception_text_never_leaks(self):
-        self.creds()
         for page, action in [('/configuration', 'generate'), ('/golden-configs', 'capture')]:
             for exc in [OSError('fixture-secret-marker'), subprocess.TimeoutExpired('fixture-secret-marker', 1, output='fixture-secret-marker')]:
                 self.runner.side_effect = exc
@@ -92,7 +86,6 @@ class Phase5DSafety(unittest.TestCase):
                 self.assertNotIn(b'fixture-secret-marker', response.data)
 
     def test_failed_backend_output_never_leaks(self):
-        self.creds()
         self.runner.return_value = subprocess.CompletedProcess([], 1, 'fixture-secret-marker', 'fixture-secret-marker')
         for page, action in [('/configuration', 'generate'), ('/golden-configs', 'capture')]:
             response = self.post(page, action)
@@ -100,7 +93,6 @@ class Phase5DSafety(unittest.TestCase):
             self.assertNotIn(b'fixture-secret-marker', response.data)
 
     def test_success_exit_without_output_is_handled(self):
-        self.creds()
         self.runner.return_value = subprocess.CompletedProcess([], 0, '', '')
         for page, action in [('/configuration', 'generate'), ('/golden-configs', 'capture')]:
             response = self.post(page, action)
@@ -127,7 +119,6 @@ class Phase5DSafety(unittest.TestCase):
         self.runner.assert_called_once()
 
     def test_successful_single_capture_uses_existing_cli(self):
-        self.creds()
         def run(command, **kwargs):
             self.assertEqual(command, [m.sys.executable, '-u', str(ROOT / 'save_golden_configs.py'), 'R1'])
             self.assertFalse(kwargs['shell'])
@@ -143,7 +134,6 @@ class Phase5DSafety(unittest.TestCase):
         self.runner.assert_called_once()
 
     def test_all_capture_reports_partial_success(self):
-        self.creds()
         def run(command, **kwargs):
             self.assertEqual(command, [m.sys.executable, '-u', str(ROOT / 'save_golden_configs.py')])
             target = self.snap()
@@ -158,7 +148,6 @@ class Phase5DSafety(unittest.TestCase):
         self.runner.assert_called_once()
 
     def test_timeout_preserves_completed_device_success(self):
-        self.creds()
         def run(command, **kwargs):
             target = self.snap()
             raise subprocess.TimeoutExpired(command, 1, output=f'[OK] R1 -> {target}\n'.encode())
@@ -181,7 +170,6 @@ class Phase5DSafety(unittest.TestCase):
         self.assertIn(b'TEST-R10', response.data)
 
     def test_stale_outputs_never_count_as_new_success(self):
-        self.creds()
         desired = self.generated / 'R1.cfg'
         desired.write_text('hostname R1\n')
         golden = self.snap()

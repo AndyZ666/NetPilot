@@ -9,16 +9,13 @@ import json
 from pathlib import Path
 import re
 import socket
+import sys
 import time
-import os
 
-USERNAME = os.getenv("NETPILOT_USERNAME")
-PASSWORD = os.getenv("NETPILOT_PASSWORD")
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-if not USERNAME or not PASSWORD:
-    raise RuntimeError(
-        "NETPILOT_USERNAME and NETPILOT_PASSWORD must be set"
-    )
+from security.credential_provider import get_credentials
 
 
 NETCONF_COMMANDS = [
@@ -40,12 +37,18 @@ def load_devices():
     return devices
 
 
-def configure_device(device, connect):
+def configure_device(device, connect, credentials=None):
     connection = None
+    try:
+        username, password = get_credentials() if credentials is None else credentials
+        if not username or not password:
+            raise ValueError
+    except Exception:
+        return "Device credentials are not available from the credential provider."
     try:
         connection = connect(
             device_type="arista_eos", host=device["ip"],
-            username=USERNAME, password=PASSWORD,
+            username=username, password=password,
             secret=device.get("secret", ""), conn_timeout=10,
             auth_timeout=10, banner_timeout=15,
         )
@@ -57,8 +60,8 @@ def configure_device(device, connect):
         if re.search(r"(?im)^\s*%|\b(?:failed|error)\b", saved):
             raise RuntimeError("Saving configuration failed.")
         return ""
-    except Exception as error:
-        return f"Deployment/save failed: {error}"
+    except Exception:
+        return "NETCONF deployment or saving the configuration failed."
     finally:
         if connection is not None:
             try:
@@ -67,8 +70,14 @@ def configure_device(device, connect):
                 pass
 
 
-def audit_device(device, connect):
+def audit_device(device, connect, credentials=None):
     port_ok = session_ok = get_ok = False
+    try:
+        username, password = get_credentials() if credentials is None else credentials
+        if not username or not password:
+            raise ValueError
+    except Exception:
+        return port_ok, session_ok, get_ok, "Device credentials are not available from the credential provider."
     # Allow the NETCONF service a short time to start after configuration.
     for attempt in range(5):
         try:
@@ -85,7 +94,7 @@ def audit_device(device, connect):
         # Match the connection settings in netconf_s3_test.py.
         with connect(
             host=device["ip"], port=830,
-            username=USERNAME, password=PASSWORD,
+            username=username, password=password,
             hostkey_verify=False, allow_agent=False, look_for_keys=False,
             timeout=30,
         ) as session:
@@ -97,8 +106,8 @@ def audit_device(device, connect):
                 raise RuntimeError("GET-CONFIG did not return a successful data reply.")
             get_ok = True
         return port_ok, session_ok, get_ok, ""
-    except Exception as error:
-        return port_ok, session_ok, get_ok, f"NETCONF audit failed: {error}"
+    except Exception:
+        return port_ok, session_ok, get_ok, "NETCONF session or running-configuration audit failed."
 
 
 def main():
@@ -110,14 +119,19 @@ def main():
         return 1
     try:
         devices = load_devices()
-    except (OSError, ValueError, KeyError, TypeError) as error:
-        print(f"Inventory error: {error}")
+    except (OSError, ValueError, KeyError, TypeError):
+        print("Inventory could not be loaded or validated.")
+        return 1
+    try:
+        credentials = get_credentials()
+    except Exception:
+        print("Device credentials are not available from the credential provider.")
         return 1
 
     print("\nConfiguring NETCONF and saving on all 9 devices...")
     deployment_errors = []
     for device in devices:
-        error = configure_device(device, ConnectHandler)
+        error = configure_device(device, ConnectHandler, credentials)
         deployment_errors.append(error)
         print(f"  {device['name']:<8} {'FAILED' if error else 'SAVED'}", flush=True)
 
@@ -130,7 +144,7 @@ def main():
     details = []
     # Audit every device, including devices whose deployment failed.
     for device, deployment_error in zip(devices, deployment_errors):
-        port_ok, session_ok, get_ok, audit_error = audit_device(device, manager.connect)
+        port_ok, session_ok, get_ok, audit_error = audit_device(device, manager.connect, credentials)
         passed = all((port_ok, session_ok, get_ok)) and not deployment_error and not audit_error
         passed_count += bool(passed)
         print(f"{device['name']:<9} {device['ip']:<16} "
@@ -140,9 +154,6 @@ def main():
               f"{'PASS' if passed else 'FAIL'}", flush=True)
         detail = "; ".join(error for error in (deployment_error, audit_error) if error)
         if detail:
-            for credential in (PASSWORD, device.get("secret", "")):
-                if credential:
-                    detail = detail.replace(credential, "[redacted]")
             details.append(f"{device['name']}: {detail}")
     print("-" * 79)
     for detail in details:

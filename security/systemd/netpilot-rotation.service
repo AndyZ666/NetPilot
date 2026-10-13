@@ -1,0 +1,23 @@
+# Install only after SMTP testing and reviewing the next due date.
+[Unit]
+Description=NetPilot scheduled shared admin password rotation
+After=basic.target netpilot-telegraf.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Documents/NetPilot
+ExecStart=%h/Documents/NetPilot/.venv/bin/python -B -m security.rotation_scheduler run --execute
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+UnsetEnvironment=NETPILOT_USERNAME NETPILOT_PASSWORD OP_SERVICE_ACCOUNT_TOKEN OP_CONNECT_TOKEN
+UMask=0077
+NoNewPrivileges=yes
+LimitCORE=0
+Restart=no
+TimeoutStartSec=0
+TimeoutStopSec=120s
+KillSignal=SIGTERM
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=netpilot-rotation

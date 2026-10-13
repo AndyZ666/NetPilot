@@ -1,5 +1,8 @@
 from netmiko import ConnectHandler
-from credential_provider import get_credentials
+if __package__:
+    from .credential_provider import get_credentials
+else:
+    from credential_provider import get_credentials
 
 DEVICES = {
     "R1": "172.20.20.13",
@@ -61,4 +64,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

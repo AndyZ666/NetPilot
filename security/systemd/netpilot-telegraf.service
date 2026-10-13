@@ -1,0 +1,34 @@
+# DRAFT: install/enable/start only after an approved migration.
+# A user unit cannot order itself against system-level Docker/Telegraf units.
+[Unit]
+Description=NetPilot Telegraf with 1Password device credentials
+After=basic.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=exec
+WorkingDirectory=%h/Documents/NetPilot
+ExecStart=%h/Documents/NetPilot/.venv/bin/python -B %h/Documents/NetPilot/security/telegraf_launcher.py
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+LoadCredential=influx-token:%h/.config/netpilot/secrets/influx-token
+UnsetEnvironment=NETPILOT_USERNAME NETPILOT_PASSWORD INFLUX_TOKEN OP_SERVICE_ACCOUNT_TOKEN OP_CONNECT_TOKEN
+RuntimeDirectory=netpilot-telegraf
+RuntimeDirectoryMode=0700
+# Preserve the lock inode even if a competing manual launcher makes startup fail.
+RuntimeDirectoryPreserve=yes
+UMask=0077
+NoNewPrivileges=yes
+LimitCORE=0
+Restart=no
+KillSignal=SIGTERM
+KillMode=control-group
+TimeoutStopSec=30s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=netpilot-telegraf
+
+[Install]
+WantedBy=default.target

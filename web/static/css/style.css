@@ -878,3 +878,26 @@ h1, h2, h3, p { margin-top: 0; }
   .basic-change-history-notice { padding-right: 20px; padding-left: 20px; }
   .basic-change-history-empty { padding-right: 20px; padding-left: 20px; }
 }
+
+/* Health Check: read-only results using the existing inventory and detail cards. */
+.health-check-form { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 18px; padding: 0 24px 24px; }
+.health-check-form .config-field { flex: 1 1 220px; min-width: 0; }
+.health-check-form > .btn { min-height: 44px; }
+.health-inventory-note { padding: 0 24px 24px; }
+.health-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; margin-top: 24px; align-items: start; }
+.health-panels > section { min-width: 0; }
+.health-protocol + .health-protocol { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+.health-protocol h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12px; font-weight: 600; }
+.health-details { margin-top: 16px; }
+.health-details summary { color: #506b89; font-size: 12px; cursor: pointer; }
+.health-check-page .health-output { min-height: 0; max-height: 280px; margin-top: 14px; padding: 16px; border-radius: 8px; font-size: 11px; }
+.health-cpu-value { margin: 0; color: #263a51; font-size: 32px; font-weight: 650; }
+.health-cpu-value span { margin-left: 4px; font-size: 18px; font-weight: 400; }
+@media (max-width: 900px) {
+  .health-panels { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .health-check-form { padding: 0 20px 20px; }
+  .health-check-form .config-field { flex-basis: 100%; }
+  .health-check-form > .btn { width: 100%; justify-content: center; }
+}

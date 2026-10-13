@@ -3,11 +3,11 @@
 
 from pathlib import Path
 from datetime import datetime
-import os
 import sys
 import yaml
 
 from netmiko import ConnectHandler
+from security import credential_provider
 
 
 # ============================================================
@@ -110,8 +110,7 @@ def get_running_config(hostname, device, username, password):
     try:
         connection = ConnectHandler(**connection_info)
 
-        current_prompt = connection.find_prompt()
-        print(f"[PROMPT]  {hostname}: {current_prompt}")
+        print(f"[CONNECT] {hostname}: session established")
 
         # ----------------------------------------------------
         # Make sure we are in privileged EXEC mode
@@ -130,8 +129,7 @@ def get_running_config(hostname, device, username, password):
                 f"{hostname}: unable to enter privileged EXEC mode."
             )
 
-        current_prompt = connection.find_prompt()
-        print(f"[PRIV]    {hostname}: {current_prompt}")
+        print(f"[PRIV]    {hostname}: privileged access verified")
 
         # ----------------------------------------------------
         # Retrieve actual running configuration
@@ -150,7 +148,10 @@ def get_running_config(hostname, device, username, password):
 
     finally:
         if connection is not None:
-            connection.disconnect()
+            try:
+                connection.disconnect()
+            except Exception:
+                pass
 
 
 # ============================================================
@@ -223,19 +224,10 @@ def main():
     # Credentials
     # --------------------------------------------------------
 
-    username = os.getenv("NETPILOT_USERNAME")
-    password = os.getenv("NETPILOT_PASSWORD")
-
-    if not username:
-        print(
-            "[ERROR] NETPILOT_USERNAME environment variable is not set."
-        )
-        return 1
-
-    if not password:
-        print(
-            "[ERROR] NETPILOT_PASSWORD environment variable is not set."
-        )
+    try:
+        username, password = credential_provider.get_credentials()
+    except Exception:
+        print("[ERROR] Device credentials unavailable from 1Password. Check CLI, token file, and Vault access.")
         return 1
 
     # --------------------------------------------------------
@@ -245,8 +237,8 @@ def main():
     try:
         inventory = load_inventory()
 
-    except Exception as exc:
-        print(f"[ERROR] Unable to load NSOT: {exc}")
+    except Exception:
+        print("[ERROR] Unable to load NSOT. Check inventory path and YAML structure.")
         return 1
 
     devices = inventory["devices"]
@@ -320,10 +312,10 @@ def main():
 
             success += 1
 
-        except Exception as exc:
+        except Exception:
 
             print(
-                f"[FAIL]    {hostname}: {exc}"
+                f"[FAIL]    {hostname}: capture failed. Check device reachability, authentication, privileged access, and output permissions."
             )
 
             failed += 1

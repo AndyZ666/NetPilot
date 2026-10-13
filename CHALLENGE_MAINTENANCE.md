@@ -15,9 +15,14 @@ source .venv/bin/activate
 python3 -m pip install -r requirements.txt
 ```
 
-Export `NETPILOT_USERNAME`, `NETPILOT_PASSWORD`, and `INFLUX_TOKEN` in this shell.
-No `.env` loader or credentials file is introduced. The token is never read from
-Telegraf's configuration. Influx URL/org/bucket and the counter measurement come
+Device credentials now come from `security/credential_provider.py` using the
+1Password CLI and the existing private token file at
+`~/.config/netpilot/secrets/onepassword-token`. The invoking account must be able
+to read that file and access `NetPilot-Secrets` / `NetPilot-Current`.
+Legacy `NETPILOT_USERNAME` / `NETPILOT_PASSWORD` exports are no longer used by
+this application. Export `INFLUX_TOKEN` for telemetry; it remains separate from
+device authentication and is never read from Telegraf's configuration.
+Influx URL/org/bucket and the counter measurement come
 from `telegraf/telegraf-gnmi-influx.conf`; `INFLUX_URL`, `INFLUX_ORG`, and
 `INFLUX_BUCKET` can override the destination. Existing verified `source`/`name`
 tags and `in_octets`/`out_octets` fields are checked against fresh live data.

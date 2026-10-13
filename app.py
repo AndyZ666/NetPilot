@@ -20,6 +20,7 @@ from urllib.parse import urlencode
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 import yaml
 import config_changes
+import health_checks
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -1100,7 +1101,7 @@ def _run_configuration_action(targets, golden, all_devices):
         elif timed_out:
             message = "The operation timed out before this device could be completed. Please try again."
         elif golden:
-            message = "Golden Config capture failed or no new snapshot was saved. Check device reachability, SSH access, and the application credentials."
+            message = "Golden Config capture failed or no new snapshot was saved. Check device reachability, SSH access, and 1Password credential access for the application."
         else:
             message = "Configuration generation failed or no new output was found. Check the device inventory and assigned template. An earlier device failure can stop Generate All."
         results.append({"hostname": name, "success": name in saved, "message": message, "filename": saved.get(name)})
@@ -1141,14 +1142,14 @@ def _configuration_management(golden=False, hostname=None, filename=None):
         elif action not in allowed or (not all_devices and not device) or (selected and not device):
             error = "Select a registered device and a valid configuration action."
             status = 400
-        elif golden and not (os.environ.get("NETPILOT_USERNAME") and os.environ.get("NETPILOT_PASSWORD")):
-            error = "Device credentials are not currently available to the NetPilot application."
         elif not _CONFIGURATION_LOCK.acquire(blocking=False):
             error = "Another configuration operation is running. Please try again after it finishes."
             status = 409
         else:
             try:
                 targets = [item["hostname"] for item in device_list] if all_devices else [selected]
+                # The existing Golden backend retrieves credentials from 1Password.
+                # Do not fetch or pass secrets through Flask sessions or CLI arguments.
                 results = _run_configuration_action(targets, golden, all_devices)
             except (OSError, ValueError, UnicodeError):
                 error = "The operation could not run. Check that the backend script and configuration directories are available and are regular files and folders."
@@ -1359,6 +1360,48 @@ def protect_configuration_responses(response):
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
     return response
+
+
+@app.route("/health-check", methods=["GET", "POST"])
+def health_check():
+    """Inventory-selected, read-only device and telemetry checks."""
+    inventory = load_inventory()
+    devices = _operation_devices(inventory) or []
+    by_name = {device["hostname"]: device for device in devices}
+    token = session.get("health_check_csrf")
+    if not isinstance(token, str):
+        token = session["health_check_csrf"] = secrets.token_hex(32)
+    selected = request.form.get("device", devices[0]["hostname"] if devices else "")
+    destination = request.form.get("destination", devices[1]["hostname"] if len(devices) > 1 else selected)
+    error = None if devices else "The device inventory is unavailable, invalid, or empty."
+    result = None
+    status_code = 200
+    if request.method == "POST":
+        submitted = request.form.get("csrf_token", "")
+        if not secrets.compare_digest(token.encode("utf-8"), submitted.encode("utf-8")):
+            error, status_code = "This form expired. Reload the page and try again.", 400
+        elif selected not in by_name or destination not in by_name:
+            error, status_code = "Select source and destination devices from the inventory.", 400
+        else:
+            try:
+                result = health_checks.run(by_name[selected], by_name[destination])
+                error = result.get("error")
+            except (ValueError, KeyError, TypeError):
+                error = "The selected inventory device needs a valid management IPv4 address and Arista platform."
+            except Exception:
+                error = "The health check could not be completed. Check device and telemetry access."
+    response = app.make_response((render_template(
+        "health_check.html", page_title="Health Check", active_page="health_check",
+        devices=devices, selected_device=selected, selected_destination=destination,
+        csrf_token=token, result=result, error=error,
+    ), status_code))
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.get("/troubleshooting")
+def troubleshooting():
+    return render_template("troubleshooting.html", page_title="Troubleshooting", active_page="troubleshooting")
 
 
 @app.get("/monitoring")

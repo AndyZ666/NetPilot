@@ -13,7 +13,6 @@ import hashlib
 import ipaddress
 import json
 import math
-import os
 from pathlib import Path
 import re
 import signal
@@ -27,6 +26,7 @@ import yaml
 
 import config_changes as storage
 from Functions.maintenance_telemetry import Telemetry, TelemetryError
+from security import credential_provider
 
 
 ROOT = Path(__file__).resolve().parent
@@ -162,8 +162,10 @@ class EAPI:
     """Small HTTP adapter for the already-enabled EOS command API. No SSH fallback."""
 
     def __init__(self, inventory, insecure=False, timeout=10):
-        username, password = os.getenv('NETPILOT_USERNAME'), os.getenv('NETPILOT_PASSWORD')
-        require(bool(username and password), "Export NETPILOT_USERNAME and NETPILOT_PASSWORD before live inspection.")
+        try:
+            username, password = credential_provider.get_credentials()
+        except Exception:
+            raise MaintenanceError("Device credentials unavailable from 1Password. Check CLI, token file, and Vault access.") from None
         self.authorization = 'Basic ' + base64.b64encode(f'{username}:{password}'.encode()).decode()
         self.inventory, self.timeout = inventory, timeout
         context = ssl._create_unverified_context() if insecure else ssl.create_default_context()

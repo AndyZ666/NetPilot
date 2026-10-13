@@ -2,7 +2,6 @@
 
 from copy import deepcopy
 import json
-import os
 from pathlib import Path
 import tempfile
 import time
@@ -73,7 +72,7 @@ class ConfigChangesTests(unittest.TestCase):
             patch.object(changes, "INVENTORY_PATH", self.inventory_path),
             patch.object(changes, "GOLDEN_CONFIGS_PATH", self.golden),
             patch.object(changes, "HISTORY_PATH", self.history),
-            patch.dict(os.environ, {"NETPILOT_USERNAME": "fixture-user", "NETPILOT_PASSWORD": "fixture-password"}),
+            patch.object(changes.credential_provider, "get_credentials", return_value=("fixture-user", "fixture-password")),
             patch.object(changes, "ConnectHandler"),
         ]
         for item in self.patches:
@@ -105,6 +104,7 @@ class ConfigChangesTests(unittest.TestCase):
         self.assertEqual(len(preview["change_id"]), 32)
         self.assertEqual(set(preview["request"]), {"device", "change_type", "interface", "new_description"})
         changes.ConnectHandler.assert_not_called()
+        changes.credential_provider.get_credentials.assert_not_called()
         self.assertFalse(self.history.exists())
         self.assert_unchanged()
 
@@ -382,10 +382,14 @@ devices:
         self.assert_unchanged()
 
     def test_missing_credentials_does_not_connect(self):
-        with patch.dict(os.environ, {}, clear=True):
+        with patch.object(changes.credential_provider, "get_credentials", side_effect=RuntimeError("fixture-vault-secret")):
             result = changes.apply_change(self.preview())
         self.assertIn("credentials are not currently available", result["error"])
+        self.assertNotIn("fixture-vault-secret", json.dumps(result))
         changes.ConnectHandler.assert_not_called()
+        self.assertFalse(self.history.exists())
+        self.assertFalse(self.golden.exists())
+        self.assert_unchanged()
 
     def test_stale_inventory_does_not_connect(self):
         preview = self.preview()

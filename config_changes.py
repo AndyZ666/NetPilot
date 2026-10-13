@@ -19,6 +19,7 @@ import threading
 import time
 
 from netmiko import ConnectHandler
+from security import credential_provider
 import yaml
 
 from save_golden_configs import validate_running_config
@@ -673,9 +674,8 @@ def apply_change(preview):
             commands = build_change_commands(canonical)
             result["generated_commands"] = commands
             updated = _prepare_inventory_update(original, inventory, canonical)
-            username, password = os.environ.get("NETPILOT_USERNAME"), os.environ.get("NETPILOT_PASSWORD")
-            if not username or not password:
-                raise ChangeError("Device credentials are not currently available to the NetPilot application.")
+            stage = "credentials"
+            username, password = credential_provider.get_credentials()
             stage = "history"
             # A crashed process leaves this unknown record, preventing a repeated live apply.
             pending = deepcopy(result)
@@ -727,6 +727,7 @@ def apply_change(preview):
             result["nsot_status"] = "failed"
         messages = {
             "validation": "The change could not be validated safely; no device change was sent.",
+            "credentials": "Device credentials are not currently available from 1Password; no device change was sent.",
             "history": "Change history could not be saved; no device change was sent.",
             "connection": "The device could not be reached or authenticated; no device change was sent.",
             "backup": "The pre-change backup failed; no device change was sent.",

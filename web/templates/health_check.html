@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% macro command_details(output, label) %}
+{% if output %}<details class="health-details"><summary>{{ label }}</summary><pre class="config-code health-output" tabindex="0"><code>{{ output }}</code></pre></details>{% endif %}
+{% endmacro %}
+
+{% block content %}
+<div class="inventory-page health-check-page">
+  <div class="page-heading">
+    <div><span class="eyebrow">LIVE DEVICE CHECKS</span><h1>Health Check</h1><p>Check routing, CPU utilization, and management connectivity for an inventory device.</p></div>
+    <span class="inventory-source"><i class="bi bi-eye" aria-hidden="true"></i> Read-only checks</span>
+  </div>
+
+  {% if error %}<div class="workspace-notice notice-error" role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><div><strong>Unable to complete this health check</strong><p>{{ error }}</p></div></div>{% endif %}
+  <section class="inventory-panel surface" aria-labelledby="health-device-title">
+    <div class="inventory-panel-heading"><div><h2 id="health-device-title">Choose devices</h2><p>The destination is used for a short ping over the management network.</p></div></div>
+    <form class="health-check-form" action="{{ url_for('health_check') }}" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="config-field"><label for="health-device">Device</label><select class="form-select" id="health-device" name="device" required{% if not devices %} disabled{% endif %}><option value="">Select a device</option>{% for device in devices %}<option value="{{ device.hostname }}"{% if selected_device == device.hostname %} selected{% endif %}>{{ device.hostname }} · {{ device.management_ip or 'Management IP unavailable' }}</option>{% endfor %}</select></div>
+      <div class="config-field"><label for="health-destination">Destination device</label><select class="form-select" id="health-destination" name="destination" required{% if not devices %} disabled{% endif %}><option value="">Select a destination</option>{% for device in devices %}<option value="{{ device.hostname }}"{% if selected_destination == device.hostname %} selected{% endif %}>{{ device.hostname }} · {{ device.management_ip or 'Management IP unavailable' }}</option>{% endfor %}</select></div>
+      <button class="btn btn-primary" type="submit"{% if not devices %} disabled{% endif %}><i class="bi bi-heart-pulse" aria-hidden="true"></i> Run Health Check</button>
+    </form>
+    {% if not devices %}<p class="config-notice health-inventory-note">No devices are available from the inventory.</p>{% endif %}
+  </section>
+
+  {% if result %}<p class="config-notice" role="status">Results for <strong>{{ result.device }}</strong> · {{ result.management_ip }} · Checked <time datetime="{{ result.checked_at }}">{{ result.checked_at }}</time> (UTC)</p>{% endif %}
+
+  <div class="health-panels">
+    <section class="detail-card surface" aria-labelledby="health-neighbors-title">
+      <div class="detail-card-heading"><span class="detail-section-icon icon-blue"><i class="bi bi-diagram-3" aria-hidden="true"></i></span><div><h2 id="health-neighbors-title">Neighborships</h2><p>OSPFv2 and IPv4 BGP in the default VRF.</p></div></div>
+      {% if result %}
+        {% for protocol in result.neighbors %}
+        <div class="health-protocol">
+          <h3>{{ protocol.protocol }} <span class="inventory-tag">{{ protocol.status }}</span></h3>
+          {% if protocol.message %}<p class="config-notice">{{ protocol.message }}</p>{% endif %}
+          {% if protocol.rows %}<div class="detail-table-scroll"><table class="detail-table"><caption class="visually-hidden">{{ protocol.protocol }} neighbors</caption><thead><tr><th scope="col">Neighbor IP</th><th scope="col">Protocol</th><th scope="col">Adjacency state</th></tr></thead><tbody>{% for neighbor in protocol.rows %}<tr><th scope="row">{{ neighbor.ip }}</th><td>{{ protocol.protocol }}</td><td>{{ neighbor.state }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+          {{ command_details(protocol.output, protocol.protocol ~ ' command details') }}
+        </div>
+        {% endfor %}
+      {% else %}<p class="config-notice">Run a health check to see results.</p>{% endif %}
+    </section>
+
+    <section class="detail-card surface" aria-labelledby="health-routes-title">
+      <div class="detail-card-heading"><span class="detail-section-icon icon-cyan"><i class="bi bi-signpost-split" aria-hidden="true"></i></span><div><h2 id="health-routes-title">Route Table</h2><p>IPv4 prefixes, route types, and next hops in the default VRF.</p></div></div>
+      {% if result %}
+      <span class="inventory-tag">{{ result.routes.status }}</span>
+      {% if result.routes.message %}<p class="config-notice">{{ result.routes.message }}</p>{% endif %}
+      {% if result.routes.output %}<pre class="config-code health-output" tabindex="0" aria-label="IPv4 route table"><code>{{ result.routes.output }}</code></pre>{% endif %}
+      {% else %}<p class="config-notice">Run a health check to see results.</p>{% endif %}
+    </section>
+
+    <section class="detail-card surface" aria-labelledby="health-cpu-title">
+      <div class="detail-card-heading"><span class="detail-section-icon icon-teal"><i class="bi bi-cpu" aria-hidden="true"></i></span><div><h2 id="health-cpu-title">CPU</h2><p>Latest utilization from the existing telemetry feed.</p></div></div>
+      {% if result %}
+      <p class="health-cpu-value">{% if result.cpu.percent is not none %}{{ '%.1f' | format(result.cpu.percent) }}<span>%</span>{% else %}N/A{% endif %}</p>
+      {% if result.cpu.timestamp %}<p class="config-notice">Latest sample: <time datetime="{{ result.cpu.timestamp }}">{{ result.cpu.timestamp }}</time> (UTC)</p>{% endif %}
+      {% if result.cpu.message %}<p class="config-notice">{{ result.cpu.message }}</p>{% endif %}
+      {% else %}<p class="config-notice">Run a health check to see results.</p>{% endif %}
+    </section>
+
+    <section class="detail-card surface" aria-labelledby="health-connectivity-title">
+      <div class="detail-card-heading"><span class="detail-section-icon icon-violet"><i class="bi bi-arrow-left-right" aria-hidden="true"></i></span><div><h2 id="health-connectivity-title">IP Connectivity</h2><p>Management Network Connectivity</p></div></div>
+      {% if result %}
+      {% set connectivity = result.connectivity %}
+      <span class="basic-change-status {{ 'is-success' if connectivity.status == 'PASS' else 'is-error' if connectivity.status == 'FAIL' else 'is-warning' }}">{{ connectivity.status }}</span>
+      <dl class="config-selection-meta"><div><dt>Source device</dt><dd>{{ connectivity.source }}</dd></div><div><dt>Destination device / IP</dt><dd>{{ connectivity.destination }} · {{ connectivity.destination_ip }}</dd></div><div><dt>Packet loss</dt><dd>{% if connectivity.packet_loss is not none %}{{ connectivity.packet_loss }}%{% else %}N/A{% endif %}</dd></div></dl>
+      {% if connectivity.message %}<p class="config-notice">{{ connectivity.message }}</p>{% endif %}
+      {{ command_details(connectivity.output, 'Ping command details') }}
+      {% else %}<p class="config-notice">Run a health check to see results.</p>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

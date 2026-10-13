@@ -9,16 +9,13 @@ import json
 from pathlib import Path
 import re
 import socket
+import sys
 import time
-import os
 
-USERNAME = os.getenv("NETPILOT_USERNAME")
-PASSWORD = os.getenv("NETPILOT_PASSWORD")
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-if not USERNAME or not PASSWORD:
-    raise RuntimeError(
-        "NETPILOT_USERNAME and NETPILOT_PASSWORD must be set"
-    )
+from security.credential_provider import get_credentials
 
 GNMI_COMMANDS = [
     "management api gnmi",
@@ -64,14 +61,20 @@ def audit_device(device, run_cli):
     return status, port, False
 
 
-def configure_device(device, connect):
+def configure_device(device, connect, credentials=None):
     connection = None
     errors = []
     status, port, passed = "ERROR", "-", False
     try:
+        username, password = get_credentials() if credentials is None else credentials
+        if not username or not password:
+            raise ValueError
+    except Exception:
+        return status, port, passed, "Device credentials are not available from the credential provider."
+    try:
         connection = connect(
             device_type="arista_eos", host=device["ip"],
-            username=USERNAME, password=PASSWORD,
+            username=username, password=password,
             secret=device.get("secret", ""), conn_timeout=10,
             auth_timeout=10, banner_timeout=15,
         )
@@ -83,14 +86,14 @@ def configure_device(device, connect):
             saved = connection.save_config()
             if re.search(r"(?im)^\s*%|\b(?:failed|error)\b", saved):
                 raise RuntimeError("Saving configuration failed.")
-        except Exception as error:
-            errors.append(str(error))
+        except Exception:
+            errors.append("gNMI configuration or saving the configuration failed.")
         # Still audit a connected device if configuration or saving failed.
         if connection.check_config_mode():
             connection.exit_config_mode()
         status, port, passed = audit_device(device, connection.send_command)
-    except Exception as error:
-        errors.append(str(error))
+    except Exception:
+        errors.append("Device connection or gNMI audit failed.")
     finally:
         if connection is not None:
             try:
@@ -99,11 +102,8 @@ def configure_device(device, connect):
                 pass
     if not passed and not errors:
         errors.append("gNMI must be enabled and reachable on management TCP port 6030.")
-    # Do not expose credentials in exception messages.
+    # Only fixed messages leave this function; network errors may contain secrets.
     detail = "; ".join(errors)
-    for credential in (PASSWORD, device.get("secret", "")):
-        if credential:
-            detail = detail.replace(credential, "[redacted]")
     return status, port, passed and not errors, detail
 
 
@@ -115,8 +115,13 @@ def main():
         return 1
     try:
         devices = load_devices()
-    except (OSError, ValueError, KeyError, TypeError) as error:
-        print(f"Inventory error: {error}")
+    except (OSError, ValueError, KeyError, TypeError):
+        print("Inventory could not be loaded or validated.")
+        return 1
+    try:
+        credentials = get_credentials()
+    except Exception:
+        print("Device credentials are not available from the credential provider.")
         return 1
 
     print("\ngNMI Configuration and Audit")
@@ -126,7 +131,7 @@ def main():
     passed_count = 0
     errors = []
     for device in devices:
-        status, port, passed, detail = configure_device(device, ConnectHandler)
+        status, port, passed, detail = configure_device(device, ConnectHandler, credentials)
         passed_count += passed
         print(f"{device['name']:<9} {device['ip']:<16} {status:<20} "
               f"{port:<7} {'PASS' if passed else 'FAIL'}", flush=True)
