@@ -1,0 +1,31 @@
+[run]
+branch = True
+# Filesystem roots avoid importing legacy scripts to discover source.
+# Functions is listed explicitly because it has no __init__.py.
+source_dirs =
+    .
+    Functions
+    security
+omit =
+    tests/*
+    .venv/*
+    venv/*
+    */__pycache__/*
+    security/__init__.py
+    */templates/*
+    generated_configs/*
+    golden_configs/*
+    htmlcov/*
+parallel = True
+# Preserve Python subprocess data and fork-child data before os._exit().
+# Children that intentionally clear coverage startup variables stay unmeasured.
+patch =
+    subprocess
+    _exit
+
+[report]
+show_missing = True
+precision = 2
+# Keep weakly tested and unexecuted modules visible.
+skip_covered = False
+skip_empty = False

@@ -109,6 +109,8 @@ def get_device(inventory, hostname):
         raise ChangeError("Basic configuration changes currently support Arista EOS devices only.")
     try:
         address = device["management"]["ipv4"]
+        if not isinstance(address, str):
+            raise ValueError
         ipaddress.IPv4Address(address)
     except (KeyError, TypeError, ValueError, ipaddress.AddressValueError):
         raise ChangeError("The selected device has no valid management IPv4 address.") from None

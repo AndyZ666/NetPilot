@@ -8,6 +8,7 @@ import configparser
 import io
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import signal
 import subprocess
 import sys
@@ -338,6 +339,98 @@ class TelegrafLauncherTests(unittest.TestCase):
         self.assertEqual(launcher.main([]), 1)
         self.exec.side_effect = KeyboardInterrupt()
         self.assertEqual(launcher.main([]), 130)
+        self.assert_no_secrets()
+
+
+    def test_nested_configuration_shapes_fail_safely_before_secret_access(self):
+        invalid = (
+            CONFIGURATION.replace("[[inputs.gnmi]]", "[inputs.gnmi]"),
+            CONFIGURATION.replace("[[outputs.influxdb_v2]]", "[outputs.influxdb_v2]"),
+            '[inputs]\ngnmi = ["LEAK-MARKER"]\n[outputs]\ninfluxdb_v2 = []\n',
+        )
+        for config in invalid:
+            with self.subTest(config=config):
+                self.config.write_text(config)
+                self.assertEqual(launcher.main([]), 1)
+                self.assertFalse(self.lock_directory.exists())
+                self.assert_no_secrets()
+        self.provider.assert_not_called()
+        self.exec.assert_not_called()
+
+    def test_all_plugins_require_environment_placeholders_before_launch(self):
+        extras = (
+            '\n[[inputs.gnmi]]\nusername = "literal-other-user"\npassword = "LEAK-MARKER"\n',
+            '\n[[outputs.influxdb_v2]]\ntoken = "LEAK-MARKER"\n',
+        )
+        for extra in extras:
+            with self.subTest(extra=extra):
+                self.config.write_text(CONFIGURATION + extra)
+                self.assertEqual(launcher.main([]), 1)
+                self.assert_no_secrets()
+        self.provider.assert_not_called()
+        self.exec.assert_not_called()
+        self.assertFalse(self.lock_directory.exists())
+
+    def test_managed_token_exact_size_boundary_and_newline_preservation(self):
+        path = self.managed_token("x" * 65536)
+        self.assertEqual(launcher.influx_token(dict(os.environ)), "x" * 65536)
+        path.write_text("  token with spaces  \r\n")
+        self.assertEqual(launcher.influx_token(dict(os.environ)), "  token with spaces  ")
+        self.provider.assert_not_called()
+        self.exec.assert_not_called()
+
+    def test_managed_token_wrong_owner_and_fifo_are_rejected_without_vault(self):
+        path = self.managed_token()
+        info = path.stat()
+        with patch.object(launcher.os, "fstat", return_value=SimpleNamespace(
+                st_mode=info.st_mode, st_uid=info.st_uid + 1)):
+            with self.assertRaisesRegex(launcher.LauncherError, "unsafe ownership"):
+                launcher.influx_token(dict(os.environ))
+        path.unlink()
+        os.mkfifo(path, mode=0o600)
+        self.assertEqual(launcher.main([]), 1)
+        self.provider.assert_not_called()
+        self.exec.assert_not_called()
+        self.assert_no_secrets()
+
+    def test_private_token_metadata_rejects_wrong_owner_without_reading_contents(self):
+        owner = os.geteuid()
+        with patch.object(launcher.os, "geteuid", return_value=owner + 1), \
+                patch.object(launcher.credential_provider, "_read_token",
+                             side_effect=AssertionError("No private token reads")):
+            self.assertEqual(launcher.main(["--check"]), 1)
+        self.provider.assert_not_called()
+        self.exec.assert_not_called()
+        self.assertFalse(self.lock_directory.exists())
+        self.assert_no_secrets()
+
+    def test_symlink_runtime_directory_and_hardlinked_lock_block_startup(self):
+        actual = self.root / "actual-runtime"
+        self.runtime.rename(actual)
+        self.runtime.symlink_to(actual, target_is_directory=True)
+        self.assertEqual(launcher.main([]), 1)
+        self.runtime.unlink()
+        actual.rename(self.runtime)
+        self.lock_directory.mkdir(mode=0o700)
+        source = self.root / "shared-lock"
+        source.write_text("")
+        source.chmod(0o600)
+        os.link(source, self.lock_directory / "collector.lock")
+        self.assertEqual(launcher.main([]), 1)
+        self.assertEqual(source.stat().st_nlink, 2)
+        self.provider.assert_not_called()
+        self.exec.assert_not_called()
+
+    def test_failed_start_releases_lock_and_allows_fresh_retry(self):
+        self.provider.side_effect = RuntimeError("LEAK-MARKER")
+        self.assertEqual(launcher.main([]), 1)
+        inode = (self.lock_directory / "collector.lock").stat().st_ino
+        self.exec.assert_not_called()
+        self.provider.side_effect = None
+        self.assertEqual(launcher.main([]), 0)
+        self.assertEqual((self.lock_directory / "collector.lock").stat().st_ino, inode)
+        self.assertEqual(self.provider.call_count, 2)
+        self.exec.assert_called_once()
         self.assert_no_secrets()
 
 

@@ -49,9 +49,10 @@ class LabConnectivityChecker:
             Tuple of (status, response_time) where status is "OK" or "FAILED"
         """
         try:
-            # Use ping command (works on Linux, macOS, Windows)
-            cmd = ["ping", "-c", str(self.packet_count), "-W", str(self.timeout * 1000), ip_address]
-            result = subprocess.run(cmd, capture_output=True, timeout=self.timeout + 1)
+            # Linux ping -W uses seconds; probes use the default one-second interval.
+            cmd = ["ping", "-c", str(self.packet_count), "-W", str(self.timeout), ip_address]
+            # Allow count - 1 intervals, the no-response wait, and one second of slack.
+            result = subprocess.run(cmd, capture_output=True, timeout=self.timeout + self.packet_count)
             
             if result.returncode == 0:
                 return "OK", ""

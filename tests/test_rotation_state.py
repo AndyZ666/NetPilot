@@ -33,6 +33,36 @@ def example(phase='PRECHECK'):
 
 
 class SchemaTests(unittest.TestCase):
+    def test_success_and_explicit_recovery_paths_have_independent_transition_expectations(self):
+        # Specify the workflow contract independently of PHASES/TRANSITIONS:
+        # prepare, change, verify, commit; failures may reconcile or roll back.
+        paths = (
+            ("IDLE", "PRECHECK", "PREPARED", "ROTATING", "VERIFYING",
+             "READY_TO_COMMIT", "COMMITTING", "COMMITTED"),
+            ("ROTATING", "PARTIAL_FAILURE", "ROLLING_BACK", "ROLLED_BACK"),
+            ("VERIFYING", "RECOVERY_REQUIRED", "VERIFYING", "READY_TO_COMMIT"),
+            ("PRECHECK", "ERROR", "PRECHECK"),
+        )
+        for path in paths:
+            for current, following in zip(path, path[1:]):
+                with self.subTest(current=current, following=following):
+                    self.assertEqual(state.transition(current, following), following)
+
+    def test_premature_promotion_and_terminal_reentry_are_forbidden_independently(self):
+        forbidden = (
+            ("IDLE", "ROTATING"), ("PRECHECK", "COMMITTING"),
+            ("PREPARED", "READY_TO_COMMIT"), ("ROTATING", "COMMITTING"),
+            ("VERIFYING", "COMMITTED"), ("READY_TO_COMMIT", "COMMITTED"),
+            ("PARTIAL_FAILURE", "COMMITTED"), ("RECOVERY_REQUIRED", "COMMITTED"),
+            ("ROLLING_BACK", "COMMITTED"), ("COMMITTED", "ROTATING"),
+            ("COMMITTED", "COMMITTING"), ("ROLLED_BACK", "ROTATING"),
+            ("ERROR", "PREPARED"),
+        )
+        for current, following in forbidden:
+            with self.subTest(current=current, following=following):
+                with self.assertRaises(state.StateError):
+                    state.transition(current, following)
+
     def test_valid_single_fleet_events_and_nullable_fields(self):
         record = example()
         before = deepcopy(record)

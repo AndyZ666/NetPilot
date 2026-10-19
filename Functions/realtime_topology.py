@@ -21,6 +21,8 @@ INFLUX_URL = "http://127.0.0.1:8086"
 INFLUX_ORG = "NetPilot"
 INFLUX_BUCKET = "telemetry"
 REFRESH_SECONDS = 5
+# Match maintenance telemetry's 30s freshness limit: three 10s collection intervals.
+TELEMETRY_MAX_AGE_SECONDS = 30
 DEFAULT_OUTPUT_FILE = "netpilot_realtime_topology.png"
 
 
@@ -109,6 +111,9 @@ def load_devices_json(path):
 def normalize_interface(interface):
     lower = interface.lower()
 
+    if lower.startswith("ethernet"):
+        return interface
+
     if lower.startswith("eth"):
         number = interface[3:]
         return f"Ethernet{number}"
@@ -178,9 +183,11 @@ def print_topology_summary(G):
 
 def get_interface_states(query_api):
 
+    # Flux range requires valid source timestamps and filters null/stale samples
+    # before last(); keep() then drops _time from the returned rows.
     query = f'''
 from(bucket: "{INFLUX_BUCKET}")
-  |> range(start: -30d)
+  |> range(start: -{TELEMETRY_MAX_AGE_SECONDS}s)
   |> filter(fn: (r) =>
       r["_measurement"] == "interface_oper_status" and
       r["_field"] == "oper_status"
@@ -231,14 +238,15 @@ def endpoint_status(node, interface, states):
 
 def determine_link_status(node1, node2, edge, states):
 
+    # Stored endpoints own interface1/2; undirected graph iteration may reverse them.
     status1 = endpoint_status(
-        node1,
+        edge["endpoint1"].split(":", 1)[0],
         edge["interface1"],
         states
     )
 
     status2 = endpoint_status(
-        node2,
+        edge["endpoint2"].split(":", 1)[0],
         edge["interface2"],
         states
     )
@@ -362,6 +370,8 @@ def draw_topology(G, pos, states, output_file=DEFAULT_OUTPUT_FILE):
 
         intf1 = edge["interface1"]
         intf2 = edge["interface2"]
+        if u != edge["endpoint1"].split(":", 1)[0]:
+            intf1, intf2 = intf2, intf1
 
         edge_labels[(u, v)] = (
             f"{intf1} ↔ {intf2}"

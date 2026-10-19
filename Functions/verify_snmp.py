@@ -8,6 +8,7 @@ Uses Net-SNMP snmpget/snmpwalk commands (requires net-snmp-utils installed).
 """
 
 import json
+import re
 import subprocess
 import sys
 import argparse
@@ -170,6 +171,17 @@ def run_snmp_command(
 # SNMP DATA RETRIEVAL FUNCTIONS
 # ============================================================================
 
+def _parse_unsigned(value: str, maximum: int) -> int:
+    """Parse a complete decimal SNMP value within its unsigned range."""
+    value = value.strip()
+    if not re.fullmatch(r'[0-9]+', value):
+        raise ValueError("Invalid unsigned integer")
+    parsed = int(value)
+    if parsed > maximum:
+        raise ValueError(f"Value outside 0..{maximum}")
+    return parsed
+
+
 def get_hostname(ip: str) -> Tuple[bool, str]:
     """
     Query sysName OID to get device hostname.
@@ -221,8 +233,11 @@ def get_uptime(ip: str) -> Tuple[bool, str]:
         # Extract the numeric value (hundredths of seconds)
         if 'Timeticks:' in output:
             # Format: "Timeticks: (123456789) 14 days, 06:45:23.45"
-            timeticks = output.split('(')[1].split(')')[0]
-            centiseconds = int(timeticks)
+            match = re.match(r'\(([^()]*)\)(?:\s|$)',
+                             output.split('Timeticks:', 1)[1].strip())
+            if not match:
+                return False, "Could not parse uptime"
+            centiseconds = _parse_unsigned(match.group(1), (1 << 32) - 1)
             
             # Convert to total seconds
             total_seconds = centiseconds // 100
@@ -259,9 +274,10 @@ def get_cpu_stats(ip: str) -> Tuple[bool, CPUStats, str]:
             if not line.strip():
                 continue
             # Parse: "HOST-RESOURCES-MIB::hrProcessorLoad.1 = INTEGER: 42"
-            if 'INTEGER:' in line:
-                value = int(line.split('INTEGER:')[1].strip())
-                cpu_values.append(float(value))
+            if 'INTEGER:' not in line:
+                return False, None, "Could not parse CPU value"
+            value = _parse_unsigned(line.split('INTEGER:', 1)[1], 100)
+            cpu_values.append(float(value))
         
         if not cpu_values:
             return False, None, "No CPU values retrieved"
@@ -363,7 +379,7 @@ def get_interface_status(
                 oid_part = line.split(' = ')[0]
                 if_index = oid_part.split('.')[-1]
                 value = line.split('INTEGER:')[1].strip()
-                oper_status[if_index] = _map_status(value)
+                oper_status[if_index] = _map_status(value, operational=True)
             except:
                 continue
         
@@ -382,12 +398,34 @@ def get_interface_status(
         return False, [], str(e)
 
 
-def _map_status(value: str) -> str:
-    """Convert SNMP status integer to human-readable string."""
+def _map_status(value: str, operational: bool = False) -> str:
+    """Normalize numeric, textual, and labelled IF-MIB status values."""
     status_map = {"1": "UP", "2": "DOWN", "3": "TESTING"}
-    # Handle both numeric and text formats
-    value_clean = value.split('(')[0].strip()
-    return status_map.get(value_clean, value_clean)
+    if operational:
+        status_map.update({"4": "UNKNOWN", "5": "DORMANT",
+                           "6": "NOTPRESENT", "7": "LOWERLAYERDOWN"})
+    value = value.strip().upper()
+    if value in status_map:
+        return status_map[value]
+    if value in status_map.values():
+        return value
+    match = re.fullmatch(r'([A-Z]+)\(([0-9]+)\)', value)
+    if match and status_map.get(match.group(2)) == match.group(1):
+        return match.group(1)
+    return "UNKNOWN"
+
+
+def _valid_counter_output(output: str) -> bool:
+    """Require every returned counter to contain an unsigned 64-bit value."""
+    lines = [line for line in output.splitlines() if line.strip()]
+    try:
+        for line in lines:
+            if 'Counter64:' not in line:
+                return False
+            _parse_unsigned(line.split('Counter64:', 1)[1], (1 << 64) - 1)
+        return bool(lines)
+    except ValueError:
+        return False
 
 
 def check_traffic_counters(ip: str) -> Tuple[bool, str]:
@@ -396,19 +434,21 @@ def check_traffic_counters(ip: str) -> Tuple[bool, str]:
     This is a read-only verification; does not modify device state.
     """
     # Check ifHCInOctets
-    success_in, _ = run_snmp_command('snmpget', ip, '1.3.6.1.2.1.31.1.1.1.6.1')
+    success_in, output_in = run_snmp_command('snmpget', ip, '1.3.6.1.2.1.31.1.1.1.6.1')
     
     # Check ifHCOutOctets
-    success_out, _ = run_snmp_command('snmpget', ip, '1.3.6.1.2.1.31.1.1.1.10.1')
+    success_out, output_out = run_snmp_command('snmpget', ip, '1.3.6.1.2.1.31.1.1.1.10.1')
     
-    if success_in and success_out:
+    if (success_in and success_out and
+            _valid_counter_output(output_in) and _valid_counter_output(output_out)):
         return True, ""
     
-    # If walk fails, it might be due to missing interface 1; try to walk instead
-    success_in, _ = run_snmp_command('snmpwalk', ip, '1.3.6.1.2.1.31.1.1.1.6')
-    success_out, _ = run_snmp_command('snmpwalk', ip, '1.3.6.1.2.1.31.1.1.1.10')
+    # If get fails, it might be due to missing interface 1; try to walk instead
+    success_in, output_in = run_snmp_command('snmpwalk', ip, '1.3.6.1.2.1.31.1.1.1.6')
+    success_out, output_out = run_snmp_command('snmpwalk', ip, '1.3.6.1.2.1.31.1.1.1.10')
     
-    if success_in and success_out:
+    if (success_in and success_out and
+            _valid_counter_output(output_in) and _valid_counter_output(output_out)):
         return True, ""
     
     return False, "Cannot retrieve traffic counters"

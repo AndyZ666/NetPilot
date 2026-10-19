@@ -5,6 +5,7 @@ controller calls refresh_and_verify, after verified Current promotion.
 """
 
 from datetime import datetime, timezone
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -106,6 +107,12 @@ class ManagedTelegrafMonitoring:
         try:
             if set(targets) != set(FLEET) or len(set(targets.values())) != len(FLEET):
                 raise MonitoringError()
+            for value in targets.values():
+                if not isinstance(value, str):
+                    raise MonitoringError()
+                address = ipaddress.IPv4Address(value)
+                if address.is_unspecified or address.is_multicast or address.is_loopback:
+                    raise MonitoringError()
             measurement, url, org, bucket, token = self._settings()
             client = InfluxDBClient(url=url, token=token, org=org, timeout=10000)
             deadline = time.monotonic() + wait

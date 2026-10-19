@@ -27,13 +27,15 @@ GNMI_COMMANDS = [
 def load_devices():
     with Path(__file__).with_name("devices.json").open() as inventory:
         devices = json.load(inventory)["devices"]
+    if not isinstance(devices, list) or any(not isinstance(device, dict) for device in devices):
+        raise ValueError("Inventory devices must be a list of objects.")
     devices = [d for d in devices if d.get("type") in ("router", "switch")]
     if len(devices) != 9:
         raise ValueError(f"Expected 9 routers/switches; found {len(devices)}.")
     for device in devices:
         for field in ("name", "ip"):
-            if not device.get(field):
-                raise ValueError(f"Inventory device is missing {field}.")
+            if not isinstance(device.get(field), str) or not device[field]:
+                raise ValueError(f"Inventory device has a missing or invalid {field}.")
     return devices
 
 

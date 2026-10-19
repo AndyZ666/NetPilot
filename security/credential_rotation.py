@@ -66,7 +66,10 @@ def discover_inventory(path=INVENTORY):
             if (device.get("hostname", name) != name or device.get("vendor") != "Arista"
                     or device.get("platform") not in ("cEOS", "cEOSLab")):
                 raise ValueError
-            address = ipaddress.IPv4Address(device["management"]["ipv4"])
+            management_ip = device["management"]["ipv4"]
+            if not isinstance(management_ip, str):
+                raise ValueError
+            address = ipaddress.IPv4Address(management_ip)
             if address.is_unspecified or address.is_multicast or address.is_loopback:
                 raise ValueError
             result[name] = str(address)

@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import challenge_maintenance as maintenance
 import save_golden_configs as golden
@@ -106,6 +106,80 @@ class CredentialIntegrationTests(unittest.TestCase):
         self.provider.assert_not_called()
         connect.assert_not_called()
         self.assertEqual(self.output.getvalue(), "")
+
+
+class VaultDiagnosticTests(unittest.TestCase):
+    """Explicit diagnostic decisions with synthetic credentials and SSH sessions."""
+
+    def setUp(self):
+        self.output = self.enterContext(patch('sys.stdout', new_callable=io.StringIO))
+        for target in ('socket.socket.connect', 'socket.create_connection', 'subprocess.Popen',
+                       'security.credential_provider._read_token', 'security.credential_provider._run_op'):
+            self.enterContext(patch(target, side_effect=AssertionError('External operation forbidden')))
+        with patch('security.credential_provider.get_credentials', side_effect=AssertionError('Import must be inert')), \
+                patch('netmiko.ConnectHandler', side_effect=AssertionError('Import must be inert')):
+            self.all_devices = importlib.import_module('security.test_all_vault')
+            self.r1 = importlib.import_module('security.test_r1_vault')
+        self.provider = MagicMock(return_value=('fixture-user', 'fixture-password'))
+        self.connect = MagicMock()
+        for module in (self.all_devices, self.r1):
+            self.enterContext(patch.object(module, 'get_credentials', self.provider))
+            self.enterContext(patch.object(module, 'ConnectHandler', self.connect))
+        self.enterContext(patch.object(self.all_devices, 'DEVICES', {'R1': '192.0.2.1', 'S1': '192.0.2.2', 'S2': '192.0.2.3'}))
+
+    def test_fleet_authentication_counts_success_mismatch_and_connection_failure(self):
+        first, second = MagicMock(), MagicMock()
+        first.__enter__.return_value.send_command.return_value = 'Hostname: R1\nFQDN: R1.example.test'
+        second.__enter__.return_value.send_command.return_value = 'Hostname: S9'
+        self.connect.side_effect = [first, second, TimeoutError('fixture-password private-server-response')]
+        self.assertIsNone(self.all_devices.main())
+        self.provider.assert_called_once_with()
+        self.assertEqual([call.kwargs['host'] for call in self.connect.call_args_list],
+                         ['192.0.2.1', '192.0.2.2', '192.0.2.3'])
+        for context in (first, second):
+            context.__enter__.return_value.send_command.assert_called_once_with('show hostname')
+            context.__exit__.assert_called_once()
+        text = self.output.getvalue()
+        self.assertIn('Successful: 1', text)
+        self.assertIn('Failed: 2', text)
+        self.assertIn('Total: 3', text)
+        self.assertNotIn('fixture-password', text)
+        self.assertNotIn('private-server-response', text)
+
+    def test_fleet_hostname_identity_must_not_accept_a_prefix_match(self):
+        with patch.object(self.all_devices, 'DEVICES', {'R1': '192.0.2.1'}):
+            self.connect.return_value.__enter__.return_value.send_command.return_value = 'Hostname: R10\nFQDN: R10.example.test'
+            self.all_devices.main()
+        self.assertIn('[FAIL] R1: Hostname mismatch', self.output.getvalue())
+        self.assertIn('Successful: 0', self.output.getvalue())
+        self.assertIn('Failed: 1', self.output.getvalue())
+
+    def test_fleet_provider_failure_does_not_attempt_ssh_or_leak_exception(self):
+        self.provider.side_effect = RuntimeError('fixture-password private-server-response')
+        self.assertIsNone(self.all_devices.main())
+        self.connect.assert_not_called()
+        self.assertIn('[FAIL] Unable to retrieve credentials', self.output.getvalue())
+        self.assertNotIn('fixture-password', self.output.getvalue())
+        self.assertNotIn('private-server-response', self.output.getvalue())
+
+    def test_r1_diagnostic_uses_only_hostname_read_and_returns_success(self):
+        connection = self.connect.return_value.__enter__.return_value
+        connection.send_command.return_value = 'Hostname: R1'
+        self.assertEqual(self.r1.main(), 0)
+        self.connect.assert_called_once_with(device_type='arista_eos', host='172.20.20.13',
+            username='fixture-user', password='fixture-password', conn_timeout=10, auth_timeout=10)
+        connection.send_command.assert_called_once_with('show hostname')
+        connection.send_config_set.assert_not_called()
+        self.connect.return_value.__exit__.assert_called_once()
+
+    def test_r1_command_failure_returns_failure_and_closes_connection_without_secret(self):
+        connection = self.connect.return_value.__enter__.return_value
+        connection.send_command.side_effect = TimeoutError('fixture-password private-server-response')
+        self.assertEqual(self.r1.main(), 1)
+        self.connect.return_value.__exit__.assert_called_once()
+        self.assertIn('[FAIL] Credential retrieval or SSH test failed', self.output.getvalue())
+        self.assertNotIn('fixture-password', self.output.getvalue())
+        self.assertNotIn('private-server-response', self.output.getvalue())
 
 
 if __name__ == "__main__":

@@ -275,6 +275,73 @@ class RotationEngineTests(unittest.TestCase):
                 with self.assertRaises(rotation.RotationError):
                     rotation.discover_inventory(self.inventory)
 
+    def test_malformed_inventory_shapes_stop_before_credential_or_device_access(self):
+        original = deepcopy(self.inventory_data)
+        invalid = [None, [], {"devices": []}, {"devices": "private-fixture-value"}]
+        for field, value in (("device", []), ("device", None), ("management", []),
+                             ("management", "private-fixture-value"), ("management", None)):
+            candidate = deepcopy(original)
+            if field == "device":
+                candidate["devices"]["R1"] = value
+            else:
+                candidate["devices"]["R1"][field] = value
+            invalid.append(candidate)
+        candidate = deepcopy(original)
+        candidate["devices"][17] = {}
+        invalid.append(candidate)
+        for index, candidate in enumerate(invalid):
+            with self.subTest(case=index):
+                self.inventory_data = candidate
+                self.write_inventory()
+                with self.assertRaises(rotation.RotationError) as caught:
+                    self.engine.precheck()
+                self.assertEqual(caught.exception.category, "inventory")
+                self.assertNotIn("private-fixture-value", str(caught.exception))
+                self.assertEqual(self.credentials.reads, [])
+                self.assertEqual(self.devices.authentications, [])
+                self.assertFalse(self.store.root.exists())
+
+    def test_inventory_rejects_boolean_and_integer_addresses_before_credentials(self):
+        # YAML booleans and integers are malformed IPv4 fields, not shorthand
+        # for a different device address. ipaddress also accepts integer input.
+        for address in (True, 3221226084):
+            with self.subTest(address_type=type(address).__name__):
+                self.credentials.reads.clear()
+                self.devices.authentications.clear()
+                self.inventory_data["devices"]["R1"]["management"]["ipv4"] = address
+                self.write_inventory()
+                with self.assertRaises(rotation.RotationError) as caught:
+                    self.engine.precheck()
+                self.assertEqual(caught.exception.category, "inventory")
+                self.assertEqual(self.credentials.reads, [])
+                self.assertEqual(self.devices.authentications, [])
+                self.assertEqual(self.devices.writes, [])
+
+    def test_inventory_rejects_unspecified_multicast_and_ipv6_management_targets(self):
+        for address in ("0.0.0.0", "239.1.2.3", "2001:db8::1", " 192.0.2.10 "):
+            with self.subTest(address=address):
+                self.inventory_data["devices"]["R1"]["management"]["ipv4"] = address
+                self.write_inventory()
+                with self.assertRaises(rotation.RotationError) as caught:
+                    self.engine.precheck()
+                self.assertEqual(caught.exception.category, "inventory")
+                self.assertEqual(self.credentials.reads, [])
+                self.assertEqual(self.devices.authentications, [])
+
+    def test_inventory_rejects_wrong_identity_vendor_and_platform_before_credentials(self):
+        original = deepcopy(self.inventory_data)
+        for key, value in (("hostname", "R10"), ("vendor", "other-vendor"),
+                           ("platform", "other-platform")):
+            with self.subTest(field=key):
+                self.inventory_data = deepcopy(original)
+                self.inventory_data["devices"]["R1"][key] = value
+                self.write_inventory()
+                with self.assertRaises(rotation.RotationError) as caught:
+                    self.engine.precheck()
+                self.assertEqual(caught.exception.category, "inventory")
+                self.assertEqual(self.credentials.reads, [])
+                self.assertEqual(self.devices.authentications, [])
+
     def test_plan_and_status_are_offline_and_do_not_create_journal(self):
         inventory_before = self.inventory.read_bytes()
         for scope in (("R1",), FLEET):
@@ -699,6 +766,75 @@ class RotationEngineTests(unittest.TestCase):
         self.assertEqual(self.devices.writes, [])
         self.assertNotEqual(self.store.load()["devices"]["R1"]["state"], "verified_new")
         self.assertEqual(self.credentials.current.password, OLD_PASSWORD)
+
+    def test_initial_journal_failure_prevents_vault_staging_and_device_writes(self):
+        with patch.object(self.store, "save", side_effect=StateError("Fixture storage unavailable")):
+            with self.assertRaises(StateError):
+                self.prepare()
+        self.assertEqual(self.credentials.writes, [])
+        self.assertEqual(self.devices.writes, [])
+        self.assertEqual(self.monitoring.calls, [])
+        self.assertIsNone(self.store.load())
+
+    def test_failed_promotion_intent_prevents_current_change_and_monitoring_restart(self):
+        self.prepare(fleet=True)
+        self.rotate(fleet=True)
+        save = self.store.save
+        writes_before = list(self.credentials.writes)
+        device_writes_before = list(self.devices.writes)
+
+        def fail_intent(record):
+            event = record["events"][-1]
+            if event["operation"] == "promote" and event["result"] == "INFO":
+                raise StateError("Fixture storage unavailable")
+            return save(record)
+
+        with patch.object(self.store, "save", side_effect=fail_intent):
+            result = self.commit()
+        self.assertEqual(result["phase"], "RECOVERY_REQUIRED")
+        self.assertEqual(self.credentials.current.password, OLD_PASSWORD)
+        self.assertEqual(self.credentials.writes, writes_before)
+        self.assertEqual(self.devices.writes, device_writes_before)
+        self.assertEqual(self.monitoring.calls, [])
+        persisted = self.store.load()
+        self.assertEqual(persisted["phase"], "RECOVERY_REQUIRED")
+        self.assertEqual(persisted["events"][-1]["error"], "journal")
+        self.assertIsNotNone(self.credentials.pending)
+        self.assertIsNotNone(self.credentials.previous)
+        self.assert_no_persisted_secrets()
+
+    def test_phase_change_is_not_published_in_memory_before_durable_save(self):
+        self.prepare()
+        record = self.store.load()
+        before = deepcopy(record)
+        durable_before = self.store.path.read_bytes()
+        with self.store.operation(), patch.object(self.store, "save", side_effect=StateError("Fixture storage unavailable")):
+            with self.assertRaises(StateError):
+                self.engine._phase(record, "ROTATING")
+        self.assertEqual(record, before)
+        self.assertEqual(self.store.path.read_bytes(), durable_before)
+        self.assertEqual(self.devices.writes, [])
+
+    def test_corrupt_credential_bindings_stop_readonly_verification_before_device_access(self):
+        self.prepare()
+        before = self.store.path.read_bytes()
+        original_items = dict(self.credentials.items)
+        # These values have valid types, but belong to a different transaction,
+        # Current item, or account. A schema check alone cannot establish ownership.
+        for reference in (PENDING_REFERENCE, PREVIOUS_REFERENCE):
+            for field, value in (("rotation_id", "foreign-rotation"),
+                                 ("current_reference", "x" * 26), ("username", "foreign-account")):
+                with self.subTest(reference=reference, field=field):
+                    self.credentials.items = dict(original_items)
+                    self.credentials.items[reference] = replace(original_items[reference], **{field: value})
+                    self.devices.authentications.clear()
+                    with self.assertRaises(rotation.RotationError) as caught:
+                        self.engine.verify()
+                    self.assertEqual(caught.exception.category, "vault_conflict")
+                    self.assertEqual(self.devices.authentications, [])
+                    self.assertEqual(self.devices.writes, [])
+                    self.assertEqual(self.store.path.read_bytes(), before)
+                    self.assertEqual(self.credentials.current.password, OLD_PASSWORD)
 
     def test_cli_default_plan_is_offline_and_does_not_mutate(self):
         with patch.object(rotation, "RotationEngine", return_value=self.engine), \
@@ -1259,6 +1395,26 @@ class RotationEngineTests(unittest.TestCase):
 
 
 class PasswordPolicyTests(unittest.TestCase):
+    def test_password_generator_upper_boundary_and_noninteger_lengths(self):
+        with patch.object(rotation.secrets, "choice", return_value="a") as random_character:
+            self.assertEqual(rotation.generate_password("previous", length=128), "a" * 128)
+            self.assertEqual(random_character.call_count, 128)
+            random_character.reset_mock()
+            for length in (129, True, False, 32.0, "32", None):
+                with self.subTest(length=length):
+                    with self.assertRaises(rotation.RotationError) as caught:
+                        rotation.generate_password("previous", length=length)
+                    self.assertEqual(caught.exception.category, "credentials")
+            random_character.assert_not_called()
+
+    def test_password_collision_exhaustion_fails_without_reusing_previous(self):
+        with patch.object(rotation.secrets, "choice", return_value="a") as random_character:
+            with self.assertRaises(rotation.RotationError) as caught:
+                rotation.generate_password("a" * 32)
+        self.assertEqual(caught.exception.category, "credentials")
+        self.assertGreaterEqual(random_character.call_count, 32)
+        self.assertNotIn("a" * 32, str(caught.exception))
+
     def test_random_passwords_have_length_diversity_and_telegraf_compatible_alphabet(self):
         passwords = {rotation.generate_password(OLD_PASSWORD) for _ in range(20)}
         self.assertEqual(len(passwords), 20)

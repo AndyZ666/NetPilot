@@ -45,7 +45,9 @@ def main():
                     "show hostname"
                 )
 
-            if f"Hostname: {name}" in output:
+            hostnames = [line.split(":", 1)[1].strip() for line in output.splitlines()
+                         if line.strip().startswith("Hostname:")]
+            if hostnames == [name]:
                 print(f"[PASS] {name} ({ip})")
                 passed += 1
             else:

@@ -8,6 +8,7 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
+import urllib.error
 from unittest.mock import MagicMock, patch
 
 import yaml
@@ -403,6 +404,415 @@ class MaintenanceTests(unittest.TestCase):
             self.assertEqual(m.main(['drain', 'R2', '--dry-run']), 1)
         self.assertFalse((self.root/'must-not-exist').exists())
         self.assertEqual(self.path.read_bytes(), self.source)
+
+
+class EAPITransportTests(unittest.TestCase):
+    """Exercise the real adapter; replace credentials and the HTTP boundary only."""
+
+    def setUp(self):
+        for target in ('socket.socket.connect', 'socket.create_connection',
+                       'subprocess.run', 'subprocess.Popen',
+                       'security.credential_provider._read_token',
+                       'security.credential_provider._run_op'):
+            self.enterContext(patch(target, side_effect=AssertionError('External operation forbidden')))
+        self.password = 'fixture-private-password'
+        self.credentials = self.enterContext(patch.object(
+            m.credential_provider, 'get_credentials', return_value=('fixture-user', self.password)))
+        self.inventory = {'devices': {'R1': {'management': {'ipv4': '192.0.2.10'}}}}
+        self.api = m.EAPI(self.inventory, timeout=7)
+        self.http = self.enterContext(patch.object(
+            self.api.opener, 'open', side_effect=AssertionError('Unscripted HTTP request')))
+
+    def response(self, result):
+        self.http.side_effect = None
+        self.body = io.BytesIO(json.dumps(result).encode())
+        self.http.return_value = self.body
+
+    def test_call_sends_exact_jsonrpc_request_and_closes_response(self):
+        self.response({'jsonrpc': '2.0', 'id': 1, 'result': [{}, {'version': '4.31.2F'}]})
+        self.assertEqual(self.api.call('R1', ['enable', 'show version']), [{}, {'version': '4.31.2F'}])
+        request = self.http.call_args.args[0]
+        self.assertEqual(request.full_url, 'https://192.0.2.10/command-api')
+        self.assertEqual(request.get_method(), 'POST')
+        self.assertEqual(request.get_header('Content-type'), 'application/json')
+        self.assertEqual(request.get_header('Authorization'),
+                         'Basic Zml4dHVyZS11c2VyOmZpeHR1cmUtcHJpdmF0ZS1wYXNzd29yZA==')
+        self.assertEqual(json.loads(request.data), {
+            'jsonrpc': '2.0', 'id': 1, 'method': 'runCmds',
+            'params': {'version': 1, 'cmds': ['enable', 'show version'], 'format': 'json'}})
+        self.assertEqual(self.http.call_args.kwargs, {'timeout': 7})
+        self.assertTrue(self.body.closed)
+
+    def test_malformed_incomplete_and_api_error_replies_are_sanitized(self):
+        replies = [b'{invalid JSON ' + self.password.encode(), b'null', b'[]',
+                   json.dumps({'error': {'message': self.password}, 'result': [{}, {}]}).encode(),
+                   b'{}', b'{"result": {}}', b'{"result": [{}]}', b'{"result": [{}, {}, {}]}']
+        for reply in replies:
+            with self.subTest(reply=reply[:20]):
+                self.http.side_effect = None
+                body = io.BytesIO(reply)
+                self.http.return_value = body
+                with self.assertRaises(m.MaintenanceError) as caught:
+                    self.api.call('R1', ['enable', 'show version'])
+                self.assertNotIn(self.password, str(caught.exception))
+                self.assertNotIn(self.api.authorization, str(caught.exception))
+                self.assertTrue(body.closed)
+
+    def test_http_authentication_timeout_and_connection_errors_are_sanitized(self):
+        errors = [urllib.error.HTTPError('https://192.0.2.10/command-api', code, self.password, {}, None)
+                  for code in (401, 403)]
+        errors += [TimeoutError(self.password), ConnectionError(self.password),
+                   urllib.error.URLError(self.password), m.ssl.SSLError(self.password)]
+        for error in errors:
+            with self.subTest(error=type(error).__name__, code=getattr(error, 'code', None)):
+                self.http.reset_mock()
+                self.http.side_effect = error
+                with self.assertRaises(m.MaintenanceError) as caught:
+                    self.api.show('R1', 'show version')
+                self.assertIn('device outcome must be verified', str(caught.exception))
+                self.assertNotIn(self.password, str(caught.exception))
+                self.http.assert_called_once()
+
+    def test_show_preserves_encoding_and_validates_reply_shape(self):
+        for text, answer in ((False, {'version': '4.31.2F'}), (True, {'output': 'hostname R1\nend\n'})):
+            with self.subTest(text=text):
+                self.response({'result': [{}, answer]})
+                self.assertEqual(self.api.show('R1', 'show version', text=text),
+                                 answer['output'] if text else answer)
+                params = json.loads(self.http.call_args.args[0].data)['params']
+                self.assertEqual(params, {'version': 1, 'cmds': ['enable', 'show version'],
+                                          'format': 'text' if text else 'json'})
+        for text, answer in ((False, None), (False, []), (True, {}), (True, {'output': 7})):
+            with self.subTest(text=text, answer=answer):
+                self.response({'result': [{}, answer]})
+                with self.assertRaisesRegex(m.MaintenanceError, 'unexpected'):
+                    self.api.show('R1', 'show version', text=text)
+
+    def test_show_rejects_non_readonly_or_compound_commands_before_http(self):
+        for command in ('configure terminal', 'reload', 'show version; reload',
+                        'show version\nreload', 'show version\rreload', 'show running-config | include secret'):
+            with self.subTest(command=command), self.assertRaises(m.MaintenanceError):
+                self.api.show('R1', command)
+        self.http.assert_not_called()
+
+    def test_configure_sends_validated_commands_in_explicit_context_order(self):
+        commands = ['route-map RIP-TO-OSPF permit 10', 'set metric 50000', 'exit',
+                    'route-map OSPF-TO-RIP permit 20', 'set metric 10', 'exit',
+                    'interface Ethernet1', 'ospfv3 cost 60000', 'shutdown', 'exit',
+                    'interface Ethernet2', 'no shutdown', 'no ospfv3 cost', 'exit']
+        self.response({'result': [{} for _ in range(len(commands) + 3)]})
+        self.assertIsNone(self.api.configure('R1', commands))
+        self.assertEqual(json.loads(self.http.call_args.args[0].data)['params'], {
+            'version': 1, 'cmds': ['enable', 'configure terminal', *commands, 'end'], 'format': 'text'})
+        self.http.assert_called_once()
+
+    def test_configure_rejects_wrong_context_and_unsafe_metric_or_cost_before_http(self):
+        invalid = [[], ['shutdown'], ['set metric 10'],
+                   ['interface Ethernet1', 'set metric 10'],
+                   ['route-map RIP-TO-OSPF permit 10', 'shutdown'],
+                   ['interface Ethernet1', 'exit', 'shutdown'],
+                   ['route-map RIP-TO-OSPF permit 10', 'set metric 16777215'],
+                   ['route-map OSPF-TO-RIP permit 10', 'set metric 16'],
+                   ['interface Ethernet1', 'ipv6 ospf cost 0'],
+                   ['interface Ethernet2', 'ospfv3 cost 65536']]
+        for commands in invalid:
+            with self.subTest(commands=commands), self.assertRaises(m.MaintenanceError):
+                self.api.configure('R1', commands)
+        self.http.assert_not_called()
+
+    def test_constructor_blocks_redirects_and_environment_proxy_handlers(self):
+        with patch.dict('os.environ', {'https_proxy': 'http://192.0.2.99:8888'}, clear=True):
+            api = m.EAPI(self.inventory)
+        redirect = next(handler for handler in api.opener.handlers
+                        if isinstance(handler, m.urllib.request.HTTPRedirectHandler))
+        request = m.urllib.request.Request('https://192.0.2.10/command-api')
+        self.assertIsNone(redirect.redirect_request(request, None, 302, 'Found', {},
+                                                    'https://192.0.2.99/collect'))
+        proxies = [handler.proxies for handler in api.opener.handlers
+                   if isinstance(handler, m.urllib.request.ProxyHandler)]
+        self.assertTrue(all(not mapping for mapping in proxies))
+        self.http.assert_not_called()
+
+    def test_credential_lookup_failure_stops_before_http_client_construction(self):
+        self.credentials.side_effect = RuntimeError(self.password)
+        with patch.object(m.urllib.request, 'build_opener') as build:
+            with self.assertRaisesRegex(m.MaintenanceError, 'credentials unavailable') as caught:
+                m.EAPI(self.inventory)
+        self.assertNotIn(self.password, str(caught.exception))
+        build.assert_not_called()
+        self.http.assert_not_called()
+
+
+class RecoveryStorageTests(unittest.TestCase):
+    """Real journal/state methods use only an isolated temporary NSOT and runtime."""
+
+    def setUp(self):
+        self.root = Path(self.enterContext(tempfile.TemporaryDirectory(prefix='maintenance-state-tests-')))
+        self.path = self.root / 'devices.yml'
+        self.path.write_text('devices: {}\n')
+        self.runtime = self.root / 'runtime'
+        self.runtime.mkdir()
+        for target in ('socket.socket.connect', 'socket.create_connection', 'subprocess.run',
+                       'subprocess.Popen', 'security.credential_provider.get_credentials',
+                       'security.credential_provider._read_token', 'security.credential_provider._run_op',
+                       'challenge_maintenance.storage.ConnectHandler'):
+            self.enterContext(patch(target, side_effect=AssertionError('External operation forbidden')))
+        self.output = self.enterContext(patch('sys.stdout', new_callable=io.StringIO))
+        self.api = MagicMock()
+        self.api.show.side_effect = AssertionError('Journal checks must not query devices')
+        self.api.configure.side_effect = AssertionError('Journal checks must not configure devices')
+        self.app = m.Maintenance(self.path, self.runtime, api=self.api)
+
+    def journal(self, **changes):
+        data = {'ticket': 'RCN-5840', 'target': 'R1', 'alternate': 'R2', 'state': 'precheck'}
+        data.update(changes)
+        (self.runtime / 'R1.json').write_text(json.dumps(data))
+        return data
+
+    def test_record_rejects_corrupt_wrong_ticket_target_and_state_without_device_access(self):
+        malformed = ['{broken', 'null', '[]', '{}',
+                     json.dumps({'ticket': 'other-ticket', 'target': 'R1', 'state': 'precheck'}),
+                     json.dumps({'ticket': 'RCN-5840', 'target': 'R2', 'state': 'precheck'}),
+                     json.dumps({'ticket': 'RCN-5840', 'target': 'R1', 'state': 'unrecognized'}),
+                     json.dumps({'ticket': 'RCN-5840', 'target': 'R1', 'state': []})]
+        for content in malformed:
+            with self.subTest(content=content):
+                (self.runtime / 'R1.json').write_text(content)
+                with self.assertRaises(m.MaintenanceError):
+                    self.app.record('R1')
+        self.api.show.assert_not_called()
+        self.api.configure.assert_not_called()
+
+    def test_record_refuses_symlinks_and_target_path_traversal(self):
+        external = self.root / 'unrelated.json'
+        external.write_text('{"private": "fixture-only"}')
+        (self.runtime / 'R1.json').symlink_to(external)
+        with self.assertRaisesRegex(m.MaintenanceError, 'Unsafe rollback file'):
+            self.app.record('R1')
+        for target in ('../unrelated', 'R3', 'R1/../R2'):
+            with self.subTest(target=target), self.assertRaisesRegex(m.MaintenanceError, 'Invalid rollback target'):
+                self.app.record(target)
+        self.assertEqual(external.read_text(), '{"private": "fixture-only"}')
+        self.api.configure.assert_not_called()
+
+    def test_state_uses_active_journal_and_does_not_hide_nsot_outage_after_completed_journal(self):
+        self.path.write_text(yaml.safe_dump({'devices': {}, 'maintenance': {
+            'ticket': 'RCN-5840', 'routers': {'R1': {'state': 'out_of_service'}}}}))
+        self.journal(state='draining')
+        self.assertEqual(self.app.state('R1'), 'draining')
+        self.journal(state='in_service')
+        self.assertEqual(self.app.state('R1'), 'out_of_service')
+        self.path.write_text(yaml.safe_dump({'devices': {}, 'maintenance': {
+            'ticket': 'another-ticket', 'routers': {}}}))
+        with self.assertRaisesRegex(m.MaintenanceError, 'Different NSOT maintenance ticket'):
+            self.app.state('R1')
+        self.api.configure.assert_not_called()
+
+    def test_save_failure_preserves_last_durable_record_and_does_not_report_success(self):
+        data = self.journal()
+        before = (self.runtime / 'R1.json').read_bytes()
+        with patch.object(m.storage, '_atomic_write', side_effect=OSError('fixture disk unavailable')) as write:
+            with self.assertRaises(OSError):
+                self.app.save(data, 'draining')
+        write.assert_called_once()
+        self.assertEqual((self.runtime / 'R1.json').read_bytes(), before)
+        self.assertEqual(self.app.record('R1')['state'], 'precheck')
+        self.assertNotIn('[STAGE]', self.output.getvalue())
+        self.api.configure.assert_not_called()
+
+
+class RecoveryDecisionTests(unittest.TestCase):
+    """Real restore/drain decisions; device replies and persistence failures are synthetic."""
+
+    def setUp(self):
+        import test_maintenance_decisions as fixtures
+        self.fixtures = fixtures
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.path, self.runtime = self.root / 'devices.yml', self.root / 'runtime'
+        self.runtime.mkdir()
+        self.inventory = fixtures.synthetic_inventory()
+        self.path.write_text(yaml.safe_dump(self.inventory))
+        for boundary in ('socket.socket.connect', 'socket.socket.connect_ex', 'socket.create_connection',
+                         'subprocess.Popen', 'urllib.request.OpenerDirector.open',
+                         'Functions.maintenance_telemetry.InfluxDBClient'):
+            self.enterContext(patch(boundary, side_effect=AssertionError('External I/O forbidden')))
+        self.enterContext(patch.object(m.credential_provider, 'get_credentials', side_effect=AssertionError('Credentials forbidden')))
+        self.enterContext(patch.object(m.storage, 'ConnectHandler', side_effect=AssertionError('SSH forbidden')))
+        self.backup = self.enterContext(patch.object(m.storage, '_save_prechange_backup', side_effect=AssertionError('Real backups forbidden')))
+        self.update = self.enterContext(patch.object(m, 'update_nsot'))
+        self.output = self.enterContext(patch('sys.stdout', new_callable=io.StringIO))
+        self.api = fixtures.DecisionFixtureAPI(self.inventory)
+        self.sleep = MagicMock()
+        args = m.defaults()
+        args.timeout, args.interval = 10, 2
+        self.app = m.Maintenance(self.path, self.runtime, api=self.api, args=args, sleep=self.sleep)
+        fixtures.attach_test_telemetry(self.app, self)
+        _, _, self.plans = m.discover(self.inventory, 'R2')
+        self.original = self.app.live('R2', self.plans['R2'])
+        self.api.show.reset_mock()
+        self.journal = {
+            'ticket': 'RCN-5840', 'target': 'R2', 'alternate': 'R1', 'state': 'out_of_service',
+            'change_id': 'fixture-recovery', 'management_ip': '192.0.2.12',
+            'production_ports': ['Ethernet1', 'Ethernet2'], 'original': deepcopy(self.original),
+            'preference_attempted': True, 'isolation_attempted': True,
+        }
+        self.write_journal()
+
+    def write_journal(self):
+        (self.runtime / 'R2.json').write_text(json.dumps(self.journal))
+
+    def drained_config(self, isolated=True):
+        config = self.fixtures.running_config('R2')
+        config = config.replace('route-map RIP-TO-OSPF permit 10\n', 'route-map RIP-TO-OSPF permit 10\n   set metric 50000\n')
+        config = config.replace('route-map OSPF-TO-RIP permit 10\n', 'route-map OSPF-TO-RIP permit 10\n   set metric 10\n')
+        for port in ('Ethernet1', 'Ethernet2'):
+            config = config.replace(f'interface {port}\n', f'interface {port}\n   ospfv3 cost 60000\n')
+        return config.replace('   no shutdown\n', '   shutdown\n') if isolated else config
+
+    def assert_no_changes(self):
+        self.api.configure.assert_not_called()
+        self.update.assert_not_called()
+        self.backup.assert_not_called()
+        self.assertEqual(json.loads((self.runtime / 'R2.json').read_text()), self.journal)
+        self.assertEqual(sorted(p.name for p in self.runtime.iterdir()), ['R2.json'])
+
+    def test_restore_rejects_changed_captured_identity_before_device_reads(self):
+        for field, value in [('management_ip', '192.0.2.99'), ('production_ports', ['Ethernet1', 'Ethernet9'])]:
+            with self.subTest(field=field):
+                previous = self.journal[field]
+                self.journal[field] = value
+                self.write_journal()
+                with self.assertRaisesRegex(m.MaintenanceError, 'identity changed'):
+                    self.app.restore('R2')
+                self.api.show.assert_not_called()
+                self.assert_no_changes()
+                self.journal[field] = previous
+
+    def test_restore_rejects_unrelated_drift_and_invalid_original_admin_state(self):
+        self.api.replies['R2', 'show running-config'] = self.drained_config().replace('description core', 'description operator change')
+        with self.assertRaisesRegex(m.MaintenanceError, 'Unrelated live configuration changed'):
+            self.app.restore('R2')
+        self.assert_no_changes()
+        self.api.replies['R2', 'show running-config'] = self.drained_config()
+        self.journal['original']['admin']['Ethernet1'] = 'down'
+        self.write_journal()
+        with self.assertRaisesRegex(m.MaintenanceError, 'originally be up'):
+            self.app.restore('R2')
+        self.assert_no_changes()
+
+    def test_restore_preserves_edits_that_precede_first_recorded_device_write(self):
+        self.journal.update(state='precheck', preference_attempted=False, isolation_attempted=False)
+        self.write_journal()
+        self.api.replies['R2', 'show running-config'] = self.fixtures.running_config('R2').replace(
+            'interface Ethernet1\n', 'interface Ethernet1\n   ospfv3 cost 27\n')
+        with self.assertRaisesRegex(m.MaintenanceError, 'before our first device write'):
+            self.app.restore('R2', rollback=True)
+        self.assert_no_changes()
+
+    def test_restore_blocks_when_alternate_has_active_maintenance(self):
+        (self.runtime / 'R1.json').write_text(json.dumps({
+            'ticket': 'RCN-5840', 'target': 'R1', 'state': 'draining'}))
+        with self.assertRaisesRegex(m.MaintenanceError, 'R1 is not IN_SERVICE'):
+            self.app.restore('R2')
+        self.api.show.assert_not_called()
+        self.api.configure.assert_not_called()
+        self.update.assert_not_called()
+        self.assertEqual(self.app.record('R2'), self.journal)
+
+    def test_normal_restore_persistence_failure_prevents_device_and_nsot_changes(self):
+        self.api.replies['R2', 'show running-config'] = self.drained_config()
+        with patch.object(m.storage, '_atomic_write', side_effect=OSError('fixture disk unavailable')) as write:
+            with self.assertRaises(OSError):
+                self.app.restore('R2')
+        write.assert_called_once()
+        self.assert_no_changes()
+
+    def test_failed_or_interrupted_restore_retains_snapshot_and_records_error(self):
+        self.api.replies['R2', 'show running-config'] = self.drained_config()
+        for failure in (m.MaintenanceError('fixture apply failure'), KeyboardInterrupt()):
+            with self.subTest(failure=type(failure).__name__):
+                self.write_journal()
+                self.api.configure.reset_mock()
+                self.update.reset_mock()
+
+                def fail_apply(name, commands):
+                    self.assertEqual(name, 'R2')
+                    self.assertEqual(self.app.record('R2')['state'], 'restoring')
+                    self.assertNotIn('shutdown', commands)
+                    raise failure
+
+                self.api.configure.side_effect = fail_apply
+                with self.assertRaises(type(failure)):
+                    self.app.restore('R2')
+                self.api.configure.assert_called_once()
+                record = self.app.record('R2')
+                self.assertEqual(record['state'], 'error')
+                self.assertEqual(record['original'], self.original)
+                self.assertEqual(record['management_ip'], '192.0.2.12')
+                self.update.assert_called_once_with(self.path, 'R2', 'restoring')
+                self.assertFalse((self.runtime / 'R2_fixture-recovery_completed.json').exists())
+
+    def test_restore_stops_before_original_preferences_when_real_health_never_recovers(self):
+        self.api.replies['R2', 'show running-config'] = self.drained_config()
+        self.api.replies['R2', 'show interfaces description']['interfaceDescriptions']['Ethernet1']['lineProtocolStatus'] = 'down'
+
+        def apply(name, commands):
+            self.assertEqual(name, 'R2')
+            self.assertNotIn('shutdown', commands)
+            self.assertNotIn('no set metric', commands)
+            if 'no shutdown' in commands:
+                self.api.replies[name, 'show running-config'] = self.drained_config(isolated=False)
+
+        self.api.configure.side_effect = apply
+        with patch.object(m.time, 'monotonic', side_effect=[0, 0, 11]):
+            with self.assertRaisesRegex(m.MaintenanceError, 'recovery timed out'):
+                self.app.restore('R2')
+        self.assertEqual(self.api.configure.call_count, 2)
+        self.assertEqual(self.api.configure.call_args_list[1].args, ('R2', [
+            'interface Ethernet1', 'no shutdown', 'exit', 'interface Ethernet2', 'no shutdown', 'exit']))
+        self.sleep.assert_called_once_with(2)
+        self.assertEqual(self.app.record('R2')['state'], 'error')
+        self.assertEqual(self.app.record('R2')['original'], self.original)
+        self.update.assert_called_once_with(self.path, 'R2', 'restoring')
+
+    def test_already_restored_record_requires_real_health_and_performs_no_writes(self):
+        self.journal['state'] = 'in_service'
+        self.write_journal()
+        self.app.restore('R2')
+        for name in ('R1', 'R2'):
+            self.api.show.assert_any_call(name, 'show ip ospf neighbor')
+        self.assert_no_changes()
+        self.api.replies['R2', 'show interfaces description']['interfaceDescriptions']['Management0']['interfaceStatus'] = 'down'
+        with self.assertRaisesRegex(m.MaintenanceError, 'Management0 is not operationally up'):
+            self.app.restore('R2')
+        self.assert_no_changes()
+
+    def test_drain_cannot_apply_preferences_without_first_durable_journal(self):
+        (self.runtime / 'R2.json').unlink()
+        backup_path = self.root / 'temporary-backup.cfg'
+
+        def temporary_backup(metadata, config):
+            self.assertEqual(metadata['device'], 'R2')
+            backup_path.write_text(config)
+            return backup_path
+
+        self.backup.side_effect = temporary_backup
+        with patch.object(m.storage, '_atomic_write', side_effect=OSError('fixture disk unavailable')) as write:
+            with self.assertRaises(OSError):
+                self.app.drain('R2')
+        self.backup.assert_called_once()
+        write.assert_called_once()
+        record = json.loads(write.call_args.args[1])
+        self.assertEqual(record['state'], 'precheck')
+        self.assertFalse(record['preference_attempted'])
+        self.assertFalse(record['isolation_attempted'])
+        self.assertEqual(record['original'], self.original)
+        self.assertEqual(list(self.runtime.iterdir()), [])
+        self.api.configure.assert_not_called()
+        self.update.assert_not_called()
+        self.assertNotIn('rollback metadata durable', self.output.getvalue())
 
 
 if __name__ == '__main__':

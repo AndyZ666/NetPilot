@@ -86,6 +86,15 @@ class InventoryTests(unittest.TestCase):
 
 
 class HashTests(unittest.TestCase):
+    def test_unavailable_openssl_stops_before_subprocess(self):
+        with patch.object(recovery.shutil, "which", return_value=None), \
+                patch.object(recovery.subprocess, "run") as command:
+            with self.assertRaises(recovery.RecoveryError) as caught:
+                recovery.sha512_crypt(PASSWORD)
+        self.assertEqual(caught.exception.category, "hashing")
+        self.assertNotIn(PASSWORD, str(caught.exception))
+        command.assert_not_called()
+
     def test_password_goes_only_through_stdin(self):
         completed = subprocess.CompletedProcess([], 0, stdout=HASH + "\n", stderr="")
         with patch.object(recovery.subprocess, "run", return_value=completed) as command:
@@ -322,6 +331,78 @@ class FlowTests(unittest.TestCase):
         self.credentials.assert_not_called()
         self.ConnectHandler.assert_not_called()
         self.sha512_crypt.assert_not_called()
+
+    def test_target_recheck_accepts_an_independent_unchanged_snapshot(self):
+        snapshot = dict(self.inventory)
+        self.assertIsNone(recovery._check_targets(snapshot))
+        self.assertEqual(snapshot, {name: INVENTORY[name] for name in TARGETS})
+        self.credentials.assert_not_called()
+        self.ConnectHandler.assert_not_called()
+        self.sha512_crypt.assert_not_called()
+
+    def test_changed_missing_or_unexpected_targets_block_workflows_before_io(self):
+        changed = dict(self.inventory, R3="198.51.100.33")
+        missing = {name: address for name, address in self.inventory.items() if name != "R3"}
+        unexpected = dict(self.inventory, R1=INVENTORY["R1"])
+        swapped = dict(self.inventory, R2=INVENTORY["R3"], R3=INVENTORY["R2"])
+        for label, snapshot in (("changed", changed), ("missing", missing),
+                                ("unexpected", unexpected), ("swapped", swapped)):
+            for operation in (recovery.configure_all, recovery.verify_all):
+                with self.subTest(targets=label, operation=operation.__name__):
+                    options = ({"authorized": True, "confirmation": recovery.CONFIRMATION}
+                               if operation is recovery.configure_all else {})
+                    with self.assertRaises(recovery.RecoveryError) as caught:
+                        operation(snapshot, PASSWORD, **options)
+                    self.assertEqual(caught.exception.category, "inventory")
+                    self.assertEqual(str(caught.exception), "Recovery setup stopped: inventory.")
+        self.credentials.assert_not_called()
+        self.ConnectHandler.assert_not_called()
+        self.sha512_crypt.assert_not_called()
+        self.assertEqual(self.network.writes, [])
+        self.assertEqual(self.network.saves, [])
+
+    def test_inventory_drift_after_first_configuration_blocks_remaining_devices(self):
+        snapshot = dict(self.inventory)
+        changed = dict(snapshot, R3="198.51.100.33")
+        # The external inventory changes after R2 has been saved, while the
+        # caller's approved snapshot remains unchanged for the whole operation.
+        self.discover_targets.side_effect = lambda: dict(changed if self.network.saves else snapshot)
+        result = self.configure()
+        self.assertEqual([row["device"] for row in result], list(TARGETS))
+        self.assertEqual([row["status"] for row in result], ["PASS", "FAIL"] + ["SKIP"] * 6)
+        self.assertEqual(result[1], {"device": "R3", "status": "FAIL", "stage": "precheck",
+                                    "changed": False, "saved": None, "error": "inventory"})
+        self.assertTrue(all(row["stage"] == "not_attempted" for row in result[2:]))
+        self.assertEqual([name for name, _ in self.network.writes], ["R2"])
+        self.assertEqual(self.network.saves, ["R2"])
+        self.assertEqual([entry["host"] for entry in self.network.arguments], [INVENTORY["R2"]] * 2)
+        self.assertTrue(all(connection.disconnected for connection in self.network.connections))
+        self.assertEqual(self.inventory, snapshot)
+        self.assertIn("R3: FAIL | precheck | changed=NO | saved=UNKNOWN | error=inventory", self.output.getvalue())
+
+    def test_inventory_drift_after_first_verification_blocks_remaining_logins(self):
+        self.network.states = FakeNetwork(existing=True).states
+        snapshot = dict(self.inventory)
+        missing = {name: address for name, address in snapshot.items() if name != "S4"}
+        self.discover_targets.side_effect = lambda: dict(
+            missing if ("disconnect", "R2", "netpilot-recovery") in self.network.events else snapshot)
+        result = self.verify()
+        self.assertEqual([row["device"] for row in result], list(TARGETS))
+        self.assertEqual([row["status"] for row in result], ["PASS", "FAIL"] + ["SKIP"] * 6)
+        self.assertEqual(result[1], {"device": "R3", "status": "FAIL", "stage": "verification",
+                                    "changed": False, "saved": None, "error": "inventory"})
+        self.assertTrue(all(row["stage"] == "not_attempted" for row in result[2:]))
+        self.assertEqual([entry["host"] for entry in self.network.arguments], [INVENTORY["R2"]])
+        self.assertTrue(all(connection.disconnected for connection in self.network.connections))
+        self.assertEqual(self.network.writes, [])
+        self.assertEqual(self.network.saves, [])
+        self.credentials.assert_not_called()
+        self.sha512_crypt.assert_not_called()
+        self.assertEqual(self.inventory, snapshot)
+        self.assertIn("R3: FAIL | verification | changed=NO | saved=UNKNOWN | error=inventory", self.output.getvalue())
+        for secret in (PASSWORD, ADMIN_PASSWORD, HASH, OTHER_HASH):
+            self.assertNotIn(secret, self.output.getvalue())
+            self.assertNotIn(secret, repr(result))
 
     def test_all_eight_are_sequentially_verified_before_save_and_r1_excluded(self):
         result = self.configure()
@@ -717,6 +798,20 @@ class FlowTests(unittest.TestCase):
 
 
 class PromptTests(unittest.TestCase):
+    def test_password_limits_count_utf8_bytes_for_new_and_legacy_credentials(self):
+        # The documented policy is 16--128 UTF-8 bytes for new values, and
+        # 1--128 for explicit legacy rollback, not Python character counts.
+        for password in ("a" * 16, "a" * 128, "é" * 8, "é" * 64):
+            with self.subTest(byte_count=len(password.encode("utf-8"))):
+                self.assertIsNone(recovery.validate_password(password))
+        for password, legacy in (("é" * 7, False), ("é" * 65, False),
+                                 ("é" * 65, True), ("", True)):
+            with self.subTest(byte_count=len(password.encode("utf-8")), legacy=legacy):
+                with self.assertRaises(recovery.RecoveryError) as caught:
+                    recovery.validate_password(password, allow_legacy=legacy)
+                self.assertEqual(caught.exception.category, "password_input")
+        self.assertIsNone(recovery.validate_password("é", allow_legacy=True))
+
     def test_noninteractive_password_prompt_is_refused_before_getpass(self):
         with patch.object(recovery.sys.stdin, "isatty", return_value=False), \
                 patch.object(recovery.getpass, "getpass") as prompt:

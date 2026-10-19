@@ -211,8 +211,8 @@ def main():
                 try:
                     command = f'ping {target_ip} source {source_ip} repeat 2 timeout 1'
                     output = cli(live[source]['container'], command)
-                    loss = re.search(r'([\d.]+)% packet loss', output)
-                    if loss:
+                    loss = re.search(r'(?<!\S)([+-]?(?:\d+(?:\.\d*)?|\.\d+))%\s+packet loss', output)
+                    if loss and 0 <= float(loss.group(1)) <= 100:
                         status = 'PASS' if float(loss.group(1)) == 0 else 'FAIL'
                         detail = f'{loss.group(1)}% loss'
                     else:

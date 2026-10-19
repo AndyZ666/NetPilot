@@ -40,11 +40,18 @@ class Telemetry:
                 raise ValueError
             with Path(config_path).open("rb") as handle:
                 config = tomllib.load(handle)
-            subscriptions = [
-                sub for plugin in config["inputs"]["gnmi"]
-                for sub in plugin.get("subscription", [])
-                if sub.get("path", "").rstrip("/") == "/interfaces/interface/state/counters"
-            ]
+            plugins = config["inputs"]["gnmi"]
+            if not isinstance(plugins, list):
+                raise ValueError
+            subscriptions = []
+            for plugin in plugins:
+                if not isinstance(plugin, dict) or not isinstance(plugin.get("subscription", []), list):
+                    raise ValueError
+                for sub in plugin.get("subscription", []):
+                    if not isinstance(sub, dict) or not isinstance(sub.get("path", ""), str):
+                        raise ValueError
+                    if sub.get("path", "").rstrip("/") == "/interfaces/interface/state/counters":
+                        subscriptions.append(sub)
             if len(subscriptions) != 1 or subscriptions[0].get("subscription_mode") != "sample":
                 raise ValueError
             subscription = subscriptions[0]
@@ -64,6 +71,8 @@ class Telemetry:
             self.url = os.environ.get("INFLUX_URL", "").strip() or output["urls"][0]
             self.org = os.environ.get("INFLUX_ORG", "").strip() or output["organization"]
             self.bucket = os.environ.get("INFLUX_BUCKET", "").strip() or output["bucket"]
+            if not isinstance(self.url, str):
+                raise ValueError
             address = urlsplit(self.url)
             if (address.scheme not in {"http", "https"} or not address.hostname
                     or address.username or address.password or address.query or address.fragment

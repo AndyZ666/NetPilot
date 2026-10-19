@@ -249,6 +249,51 @@ class StoreTests(unittest.TestCase):
         self.assert_error("blocked", lambda: self.store.promote(current, pending))
         self.assertFalse(any(operation == "edit" for operation, _ in self.vault.writes))
 
+    def test_corrupted_previous_transaction_metadata_blocks_promotion_before_edit(self):
+        current, previous, pending = self.prepared()
+        original = deepcopy(self.vault.items[previous.reference])
+        before = list(self.vault.writes)
+        for key, value in (("netpilot_rotation_id", "foreign-rotation"),
+                           ("netpilot_current_reference", "z" * 26),
+                           ("password", "foreign-original-password")):
+            with self.subTest(field=key):
+                self.vault.items[previous.reference] = deepcopy(original)
+                fields = self.vault.items[previous.reference]["fields"]
+                next(field for field in fields if field["id"] == key)["value"] = value
+                self.assert_error("vault_conflict", lambda: self.store.promote(current, pending))
+                self.assertEqual(self.vault.writes, before)
+                self.assertEqual(self.store.read_current(), current)
+                self.assertEqual(self.store.find_pending(), pending)
+
+    def test_malformed_vault_templates_cannot_create_pending_credentials(self):
+        for template in (None, [], {"fields": "private-vault-response"},
+                         {"fields": ["private-vault-response"]}):
+            with self.subTest(template_type=type(template).__name__):
+                def reply(arguments, **kwargs):
+                    if arguments[1] == "template":
+                        return json.dumps(template)
+                    return self.vault(arguments, **kwargs)
+
+                self.cli.side_effect = reply
+                self.assert_error("credentials", lambda: self.store.stage_pending(
+                    ROTATION, USERNAME, NEW, CURRENT_ID))
+                self.assertEqual(self.vault.writes, [])
+                self.assertEqual(set(self.vault.items), {CURRENT_ID})
+
+    def test_malformed_item_metadata_is_rejected_without_writing_or_leaking(self):
+        original = item()
+        changes = ({"id": "z" * 26}, {"category": None}, {"fields": None},
+                   {"fields": ["private-vault-response"]},
+                   {"title": "private-vault-response"})
+        for change in changes:
+            with self.subTest(field=next(iter(change))):
+                response = dict(original, **change)
+                self.cli.side_effect = lambda arguments, **kwargs: json.dumps(response)
+                self.assert_error("credentials", lambda: self.store.read(CURRENT_ID))
+                self.assertEqual(self.vault.writes, [])
+                self.assertTrue(all(call.args[0][:2] == ["item", "get"]
+                                    for call in self.cli.call_args_list))
+
     def test_invalid_cli_json_is_sanitized(self):
         self.cli.side_effect = None
         self.cli.return_value = OLD + " private-vault-response"

@@ -5,10 +5,20 @@ Reads device information from devices.json and configures SNMP.
 """
 
 import json
+import re
 import subprocess
 import sys
 from typing import Dict, List, Any
 from pathlib import Path
+
+
+def sanitize_error(message: str) -> str:
+    """Redact labeled secrets while retaining surrounding diagnostic text."""
+    return re.sub(
+        r'''(?i)(\b(?:[\w-]*(?:password|passwd|secret|token)|pwd|authorization|api[_-]?key)\b["']?[\s:=,]+)'''
+        r'''(?:(?:[05789]|bearer)\s+)?(?:"(?:\\.|[^"\\])*(?:"|$)|'(?:\\.|[^'\\])*(?:'|$)|[^\r\n]+)''',
+        r'\1[REDACTED]', message,
+    )
 
 
 class SNMPDeployer:
@@ -80,6 +90,13 @@ class SNMPDeployer:
                 text=True,
                 timeout=10
             )
+            if deploy_result.returncode != 0:
+                self.results[device_name] = {
+                    "status": "FAILED",
+                    "output": "",
+                    "error": f"SNMP configuration application failed (exit {deploy_result.returncode})"
+                }
+                return False
             
             # Verify configuration was applied
             verify_cli = "enable\nshow running-config | section snmp\n"
@@ -94,19 +111,26 @@ class SNMPDeployer:
                 text=True,
                 timeout=10
             )
+            if verify_result.returncode != 0:
+                self.results[device_name] = {
+                    "status": "FAILED",
+                    "output": "",
+                    "error": f"SNMP configuration verification failed (exit {verify_result.returncode})"
+                }
+                return False
             
             # Check if SNMP config is in output
             if "snmp-server community NetPilot ro" in verify_result.stdout:
                 self.results[device_name] = {
                     "status": "OK",
-                    "output": verify_result.stdout.strip(),
+                    "output": sanitize_error(verify_result.stdout.strip()),
                     "error": None
                 }
                 return True
             else:
                 self.results[device_name] = {
                     "status": "FAILED",
-                    "output": verify_result.stdout.strip(),
+                    "output": sanitize_error(verify_result.stdout.strip()),
                     "error": "SNMP configuration not found in running config"
                 }
                 return False
@@ -122,7 +146,7 @@ class SNMPDeployer:
             self.results[device_name] = {
                 "status": "ERROR",
                 "output": "",
-                "error": str(e)
+                "error": sanitize_error(str(e))
             }
             return False
     

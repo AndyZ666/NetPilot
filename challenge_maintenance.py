@@ -461,7 +461,7 @@ class Maintenance:
 
     def routing(self, target, alternate, plans, avoid=False):
         """Check both access gateways and both core gateways; reject every ECMP target hop."""
-        target_ips = {str(ipaddress.ip_interface(address).ip)
+        target_ips = {ipaddress.ip_interface(address).ip
                       for port in plans[target]['ports'] for family in ('ipv4', 'ipv6')
                       for address in plans[target]['device']['interfaces'][port].get(family, [])}
         evidence = {}
@@ -476,7 +476,18 @@ class Maintenance:
                     ports = {normalize_interface(v['interface']) for v in vias}
                     require(all(re.fullmatch(r'(?:Ethernet[0-9/]+|Vlan[0-9]+)', port) for port in ports), f'{name}: unresolved/non-production next hop.')
                     if avoid:
-                        require(not any(str(v.get('nexthopAddr', '')).split('%')[0] in target_ips for v in vias), f'{name}: {prefix} still selects target next hop.')
+                        for via in vias:
+                            if 'nexthopAddr' not in via:  # Connected routes may provide only an interface.
+                                continue
+                            address = via['nexthopAddr']
+                            require(isinstance(address, str), f'{name}: {prefix} has an invalid next hop.')
+                            try:
+                                hop = ipaddress.ip_address(address)
+                            except ValueError:
+                                raise MaintenanceError(f'{name}: {prefix} has an invalid next hop.') from None
+                            # Compare address values without a validated IPv6 scope identifier.
+                            hop = ipaddress.ip_address(hop.packed)
+                            require(hop not in target_ips, f'{name}: {prefix} still selects target next hop.')
                         if owner == target:
                             require(peer['interface'] not in ports, f'{name}: {prefix} still selects {target} (including ECMP).')
                         else:

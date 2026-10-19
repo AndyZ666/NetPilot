@@ -36,6 +36,15 @@ EXPECTED_DEVICE_COUNT = 9
 COMMAND_TIMEOUT = 10
 
 
+def sanitize_error(message: str) -> str:
+    """Redact labeled secrets while retaining surrounding diagnostic text."""
+    return re.sub(
+        r'''(?i)(\b(?:[\w-]*(?:password|passwd|secret|token)|pwd|authorization|api[_-]?key)\b["']?[\s:=,]+)'''
+        r'''(?:(?:[05789]|bearer)\s+)?(?:"(?:\\.|[^"\\])*(?:"|$)|'(?:\\.|[^'\\])*(?:'|$)|[^\r\n]+)''',
+        r'\1[REDACTED]', message,
+    )
+
+
 # ============================================================================
 # DATACLASSES
 # ============================================================================
@@ -258,7 +267,7 @@ def check_prerequisites() -> bool:
         print("✗ docker command not found")
         return False
     except Exception as e:
-        print(f"✗ Error checking docker: {e}")
+        print(f"✗ Error checking docker: {sanitize_error(str(e))}")
         return False
     
     return True
@@ -299,12 +308,12 @@ def run_eos_command(device: Device, command: str) -> tuple[bool, str]:
             return True, result.stdout.strip()
         else:
             error = result.stderr.strip() or "Command failed"
-            return False, error
+            return False, sanitize_error(error)
     
     except subprocess.TimeoutExpired:
         return False, "Command timeout"
     except Exception as e:
-        return False, str(e)
+        return False, sanitize_error(str(e))
 
 
 def check_container(device: Device) -> bool:
@@ -455,23 +464,14 @@ def get_notification_status(device: Device) -> tuple[Optional[bool], Optional[bo
     
     lines = output.split('\n')
     for line in lines:
-        line_lower = line.lower()
-        
-        # Look for link-down notification
-        if 'link-down' in line_lower:
-            # Check if enabled
-            if 'yes' in line_lower or 'enabled' in line_lower:
-                link_down = True
-            elif 'no' in line_lower or 'disabled' in line_lower:
-                link_down = False
-        
-        # Look for link-up notification
-        if 'link-up' in line_lower:
-            # Check if enabled
-            if 'yes' in line_lower or 'enabled' in line_lower:
-                link_up = True
-            elif 'no' in line_lower or 'disabled' in line_lower:
-                link_up = False
+        # Read the notification's value, not the parenthesized SNMP status.
+        match = re.search(r'\b(link-down|link-up)\s+(yes|no|enabled|disabled)\b', line, re.I)
+        if match:
+            enabled = match.group(2).lower() in ('yes', 'enabled')
+            if match.group(1).lower() == 'link-down':
+                link_down = enabled
+            else:
+                link_up = enabled
     
     return link_down, link_up
 
@@ -521,7 +521,7 @@ def audit_device(device: Device, verbose: bool = False) -> AuditResult:
           result.trap_port == TRAP_UDP_PORT and
           result.security_model == SNMP_VERSION and
           result.community == SNMP_COMMUNITY and
-          result.source_interface and "management0" in result.source_interface.lower() and
+          result.source_interface and result.source_interface.lower() == SOURCE_INTERFACE.lower() and
           result.link_down_enabled is True and
           result.link_up_enabled is True):
         result.status = "PASS"
@@ -535,7 +535,7 @@ def audit_device(device: Device, verbose: bool = False) -> AuditResult:
     elif result.security_model != SNMP_VERSION or result.community != SNMP_COMMUNITY:
         result.status = "FAIL"
         result.message = "Incorrect SNMP security parameters"
-    elif not result.source_interface or "management0" not in result.source_interface.lower():
+    elif not result.source_interface or result.source_interface.lower() != SOURCE_INTERFACE.lower():
         result.status = "FAIL"
         result.message = "Source interface not configured correctly"
     elif result.link_down_enabled is False or result.link_up_enabled is False:
@@ -575,7 +575,7 @@ def build_missing_config(result: AuditResult) -> List[str]:
     
     # Check local interface - must be Management0
     if (result.source_interface is None or 
-        "management0" not in result.source_interface.lower()):
+        result.source_interface.lower() != SOURCE_INTERFACE.lower()):
         commands.append(f"snmp-server local-interface {SOURCE_INTERFACE}")
     
     # Check traps enabled - both link-down and link-up must be True
@@ -628,7 +628,7 @@ def apply_device_config(device: Device, commands: List[str], verbose: bool = Fal
         else:
             if verbose:
                 error = result.stderr.strip() or result.stdout.strip() or "Command failed"
-                print(f"      Configuration error: {error}")
+                print(f"      Configuration error: {sanitize_error(error)}")
             return False
     
     except subprocess.TimeoutExpired:
@@ -637,7 +637,7 @@ def apply_device_config(device: Device, commands: List[str], verbose: bool = Fal
         return False
     except Exception as e:
         if verbose:
-            print(f"      Configuration exception: {str(e)}")
+            print(f"      Configuration exception: {sanitize_error(str(e))}")
         return False
 
 
@@ -685,8 +685,6 @@ def print_results_table(results: List[AuditResult]) -> None:
         udp_port = str(result.trap_port) if result.trap_port else "N/A"
         
         source_iface = result.source_interface or "N/A"
-        if isinstance(source_iface, str) and "Management" in source_iface:
-            source_iface = "Management0"
         
         link_down = "Enabled" if result.link_down_enabled else ("Disabled" if result.link_down_enabled is False else "N/A")
         link_up = "Enabled" if result.link_up_enabled else ("Disabled" if result.link_up_enabled is False else "N/A")

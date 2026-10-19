@@ -207,7 +207,7 @@ def run(source, destination):
                     # Same bounded EOS ping syntax as Functions/check_network_status.py.
                     command = f"ping {destination_ip} source {address} repeat 3 timeout 1"
                     output = _read(connection, command, password)
-                    match = re.search(r"([\d.]+)%\s+packet loss", output)
+                    match = re.search(r"(?<!\S)([+-]?(?:\d+(?:\.\d*)?|\.\d+))%\s+packet loss", output)
                     loss = float(match.group(1)) if match else None
                     if loss is not None and not 0 <= loss <= 100:
                         loss = None

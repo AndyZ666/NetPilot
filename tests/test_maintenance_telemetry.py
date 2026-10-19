@@ -192,6 +192,137 @@ class TelemetryTests(unittest.TestCase):
         self.assertEqual((result["rx_start"], result["rx_end"]), (NOW - 20, NOW - 10))
         self.assertEqual((result["tx_start"], result["tx_end"]), (NOW - 22, NOW - 12))
 
+    def test_latest_sample_age_accepts_exact_limit_but_rejects_older_evidence(self):
+        telemetry = self.telemetry(max_age=30)
+        for age, accepted in [(30, True), (30.001, False)]:
+            with self.subTest(age=age):
+                self.data[:] = records()
+                for row in self.data:
+                    stamp = row.values["_time"].timestamp() - (age - 10)
+                    row.values["_time"] = datetime.fromtimestamp(stamp, timezone.utc)
+                if accepted:
+                    result = telemetry.rates(SOURCES, INTERFACES)["R1"]["Ethernet1"]
+                    self.assertEqual(result["end"], NOW - 30)
+                    self.assertEqual((result["rx_bps"], result["tx_bps"]), (160, 160))
+                else:
+                    with self.assertRaisesRegex(TelemetryError, "stale"):
+                        telemetry.rates(SOURCES, INTERFACES)
+
+    def test_future_clock_tolerance_accepts_two_seconds_but_no_more(self):
+        telemetry = self.telemetry()
+        for ahead, accepted in [(2, True), (2.001, False)]:
+            with self.subTest(ahead=ahead):
+                self.data[:] = records()
+                for row in self.data:
+                    stamp = row.values["_time"].timestamp() + 10 + ahead
+                    row.values["_time"] = datetime.fromtimestamp(stamp, timezone.utc)
+                if accepted:
+                    result = telemetry.rates(SOURCES, INTERFACES)["R1"]["Ethernet1"]
+                    self.assertEqual(result["end"], NOW + 2)
+                    self.assertEqual((result["rx_bps"], result["tx_bps"]), (160, 160))
+                else:
+                    with self.assertRaisesRegex(TelemetryError, "future"):
+                        telemetry.rates(SOURCES, INTERFACES)
+
+    def test_sample_gap_accepts_exact_limit_but_rejects_a_larger_gap(self):
+        telemetry = self.telemetry(max_age=30)
+        for gap, accepted in [(30, True), (30.001, False)]:
+            with self.subTest(gap=gap):
+                self.data[:] = records()
+                for row in self.data:
+                    if row.values["_value"] == 1000:
+                        row.values["_time"] = datetime.fromtimestamp(NOW - 10 - gap, timezone.utc)
+                    else:
+                        row.values["_value"] = 1300
+                if accepted:
+                    result = telemetry.rates(SOURCES, INTERFACES)["R1"]["Ethernet1"]
+                    self.assertEqual((result["start"], result["end"]), (NOW - 40, NOW - 10))
+                    self.assertEqual((result["rx_bps"], result["tx_bps"]), (80, 80))
+                else:
+                    with self.assertRaisesRegex(TelemetryError, "sampling gap"):
+                        telemetry.rates(SOURCES, INTERFACES)
+
+    def test_cidr_and_ipv6_addresses_are_normalized_before_query_and_matching(self):
+        for row in self.data:
+            if row.values["source"] == "172.20.20.14":
+                row.values["source"] = "2001:db8::14"
+        sources = {"R1": "172.20.20.13/24", "R2": "2001:0db8:0:0::14/64"}
+        result = self.telemetry().rates(sources, INTERFACES)
+        self.assertEqual(set(result), {"R1", "R2"})
+        self.assertEqual(result["R1"]["Ethernet1"]["rx_bps"], 160)
+        self.assertEqual(result["R2"]["Ethernet2"]["tx_bps"], 160)
+        query = self.client.query_api.return_value.query.call_args.kwargs["query"]
+        self.assertIn('r["source"] == "172.20.20.13"', query)
+        self.assertIn('r["source"] == "2001:db8::14"', query)
+        self.assertNotIn("/24", query)
+        self.assertNotIn("/64", query)
+
+    def test_duplicate_addresses_after_cidr_normalization_prevent_query(self):
+        sources = {"R1": "172.20.20.13", "R2": "172.20.20.13/24"}
+        with self.assertRaisesRegex(TelemetryError, "unique management addresses"):
+            self.telemetry().rates(sources, INTERFACES)
+        self.client.query_api.assert_not_called()
+
+    def test_invalid_nested_config_shapes_raise_safe_errors_before_client_creation(self):
+        malformed_configs = {
+            "gnmi table instead of array": CONFIG.replace("[[inputs.gnmi]]", "[inputs.gnmi]"),
+            "subscription entry is a string": CONFIG.replace(
+                '[[inputs.gnmi.subscription]]\nname = "fixture_interface_counters"\n'
+                'path = "/interfaces/interface/state/counters"\nsubscription_mode = "sample"\n'
+                'sample_interval = "10s"',
+                'subscription = ["private-configuration-value"]',
+            ),
+        }
+        for shape, config in malformed_configs.items():
+            with self.subTest(shape=shape):
+                self.config.write_text(config)
+                with self.assertRaises(Exception) as caught:
+                    self.telemetry()
+                self.factory_mock.assert_not_called()
+                self.assertIsInstance(caught.exception, TelemetryError)
+                self.assertNotIn("private-configuration-value", str(caught.exception))
+
+    def test_client_initialization_failure_does_not_expose_token_or_server_details(self):
+        self.factory_mock.side_effect = RuntimeError("fixture-env-only private server response")
+        with self.assertRaisesRegex(TelemetryError, "could not be initialized") as caught:
+            self.telemetry()
+        self.assertNotIn("fixture-env-only", str(caught.exception))
+        self.assertNotIn("private server response", str(caught.exception))
+        self.assertTrue(caught.exception.__suppress_context__)
+        self.client.query_api.assert_not_called()
+
+    def test_client_close_failure_does_not_escape_or_disclose_details(self):
+        telemetry = self.telemetry()
+        self.client.close.side_effect = RuntimeError("fixture-env-only private close response")
+        self.assertIsNone(telemetry.close())
+        self.client.close.assert_called_once_with()
+
+    def test_only_newest_counter_pair_is_used_across_unordered_query_tables(self):
+        historical = [SimpleNamespace(values=dict(
+            row.values, _time=datetime.fromtimestamp(NOW - 90, timezone.utc), _value=999999,
+        )) for row in self.data if row.values["_value"] == 1000]
+        self.client.query_api.return_value.query.return_value = [
+            SimpleNamespace(records=list(reversed(self.data))),
+            SimpleNamespace(records=historical),
+        ]
+        result = self.telemetry().rates(SOURCES, INTERFACES)["R1"]["Ethernet1"]
+        self.assertEqual((result["rx_bps"], result["tx_bps"]), (160, 160))
+        self.assertEqual((result["start"], result["end"]), (NOW - 20, NOW - 10))
+
+    def test_empty_query_result_is_missing_evidence_not_zero_traffic(self):
+        self.client.query_api.return_value.query.return_value = []
+        with self.assertRaisesRegex(TelemetryError, "Two distinct RX and TX samples"):
+            self.telemetry().rates(SOURCES, INTERFACES)
+
+    def test_malformed_query_record_is_a_safe_telemetry_error(self):
+        self.client.query_api.return_value.query.return_value = [
+            SimpleNamespace(records=[SimpleNamespace(values="private server response")]),
+        ]
+        with self.assertRaisesRegex(TelemetryError, "could not be read") as caught:
+            self.telemetry().rates(SOURCES, INTERFACES)
+        self.assertNotIn("private server response", str(caught.exception))
+        self.assertTrue(caught.exception.__suppress_context__)
+
 
 if __name__ == "__main__":
     unittest.main()

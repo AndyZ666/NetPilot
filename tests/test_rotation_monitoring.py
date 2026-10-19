@@ -44,6 +44,10 @@ class RotationMonitoringTests(unittest.TestCase):
         self.path.write_text(CONFIG)
         self.enterContext(patch.dict("os.environ", {"INFLUX_TOKEN": "synthetic-token"}, clear=True))
         self.enterContext(patch.object(monitor.time, "time", return_value=NOW))
+        self.enterContext(patch("socket.socket.connect", side_effect=AssertionError("No live network")))
+        self.enterContext(patch("socket.create_connection", side_effect=AssertionError("No live network")))
+        self.enterContext(patch("security.credential_provider.get_credentials",
+                                side_effect=AssertionError("No real Vault access")))
         self.run = self.enterContext(patch.object(monitor.subprocess, "run"))
         self.sleep = self.enterContext(patch.object(monitor.time, "sleep"))
         self.client = MagicMock()
@@ -126,6 +130,152 @@ class RotationMonitoringTests(unittest.TestCase):
             self.monitor.verify_current("fixture", {"R1": TARGETS["R1"]})
         self.factory.assert_not_called()
         self.run.assert_not_called()
+
+
+    def test_wrong_fleet_names_and_duplicate_addresses_fail_before_external_access(self):
+        wrong_name = dict(TARGETS)
+        wrong_name["unexpected-device"] = wrong_name.pop("R1")
+        duplicate = dict(TARGETS, R2=TARGETS["R1"])
+        for targets in (wrong_name, duplicate):
+            with self.subTest(targets=targets), self.assertRaises(monitor.MonitoringError):
+                self.monitor.verify_current("fixture", targets)
+        self.factory.assert_not_called()
+        self.run.assert_not_called()
+        self.private_token.assert_not_called()
+
+    def test_invalid_target_addresses_cannot_be_verified_by_matching_source_labels(self):
+        # The fleet contract identifies devices by management IP, not arbitrary
+        # Influx source labels. A matching label is not proof of a valid target.
+        for address in ("not-an-ip", "192.0.2.999", "192.0.2.1/24", None):
+            with self.subTest(address=address):
+                targets = dict(TARGETS, R1=address)
+                self.data[:] = rows()
+                self.data[0].values["source"] = address
+                with self.assertRaises(monitor.MonitoringError):
+                    self.monitor.verify_current("fixture", targets)
+
+    def test_freshness_accepts_exact_age_and_future_allowance_boundaries(self):
+        for stamp in (NOW - 30, NOW + 2):
+            with self.subTest(stamp=stamp):
+                self.data[:] = rows(stamp)
+                self.assertTrue(self.monitor.verify_current("fixture", TARGETS))
+        self.assertEqual(self.client.close.call_count, 2)
+
+    def test_offset_timestamps_are_compared_as_instants(self):
+        self.data[:] = rows()
+        self.data[0].values["_time"] = datetime.fromisoformat("2027-01-15T11:00:00+03:00")
+        self.assertEqual(self.data[0].values["_time"].timestamp(), NOW)
+        self.assertTrue(self.monitor.verify_current("fixture", TARGETS))
+
+    def test_schema_and_timestamp_errors_prevent_fleet_verification(self):
+        for key, value in (("_measurement", "other_measurement"), ("_field", "out_octets"),
+                           ("_time", None), ("_time", "private-timestamp-marker"),
+                           ("_time", datetime(2027, 1, 15))):
+            with self.subTest(field=key, value=value):
+                self.data[:] = rows()
+                self.data[0].values[key] = value
+                with self.assertRaises(monitor.MonitoringError) as failed:
+                    self.monitor.verify_current("fixture", TARGETS)
+                self.assertNotIn("private-timestamp-marker", str(failed.exception))
+        self.assertEqual(self.client.close.call_count, 5)
+
+    def test_missing_malformed_and_unexpected_sources_do_not_prove_full_fleet(self):
+        duplicates = rows()[:-1] + [rows()[0]]
+        unexpected = rows() + [SimpleNamespace(values=dict(rows()[0].values, source="192.0.2.250"))]
+        for tables in ([], None, [SimpleNamespace()],
+                       [SimpleNamespace(records=[SimpleNamespace(values=None)])],
+                       [SimpleNamespace(records=duplicates)], [SimpleNamespace(records=unexpected)]):
+            with self.subTest(tables=tables):
+                self.client.query_api.return_value.query.return_value = tables
+                with self.assertRaises(monitor.MonitoringError):
+                    self.monitor.verify_current("fixture", TARGETS)
+        self.assertEqual(self.client.close.call_count, 6)
+
+    def test_one_fresh_interface_per_device_is_sufficient_even_with_stale_other_interfaces(self):
+        # Rotation proves renewed collection from each device, not every port's
+        # health. A stale second interface cannot erase the fresh device sample.
+        self.data[:] = rows(NOW - 31) + rows()
+        for record in self.data[len(TARGETS):]:
+            record.values["name"] = "Ethernet2"
+        self.assertTrue(self.monitor.verify_current("fixture", TARGETS))
+
+    def test_invalid_settings_fail_before_credentials_client_or_service_access(self):
+        invalid = (
+            CONFIG.replace("[[inputs.gnmi]]", "[inputs.gnmi]"),
+            CONFIG.replace('name = "fixture_counters"', 'name = 42'),
+            CONFIG.replace('urls = ["http://192.0.2.100:8086"]', 'urls = []'),
+            CONFIG.replace('http://192.0.2.100:8086', 'https://private-marker@example.invalid'),
+            CONFIG.replace('http://192.0.2.100:8086', 'https://example.invalid/?token=private-marker'),
+            CONFIG + '\n[[outputs.influxdb_v2]]\nurls = ["http://192.0.2.101"]\n',
+        )
+        for config in invalid:
+            with self.subTest(config=config):
+                self.path.write_text(config)
+                with self.assertRaises(monitor.MonitoringError) as failed:
+                    self.monitor.verify_current("fixture", TARGETS)
+                self.assertNotIn("private-marker", str(failed.exception))
+        self.factory.assert_not_called()
+        self.run.assert_not_called()
+        self.private_token.assert_not_called()
+
+    def test_client_construction_failure_is_sanitized_before_service_access(self):
+        self.factory.side_effect = RuntimeError("private-client-marker synthetic-token")
+        with self.assertRaises(monitor.MonitoringError) as failed:
+            self.monitor.verify_current("fixture", TARGETS)
+        self.assertNotIn("private-client-marker", str(failed.exception))
+        self.assertNotIn("synthetic-token", str(failed.exception))
+        self.assertTrue(failed.exception.__suppress_context__)
+        self.run.assert_not_called()
+        self.client.close.assert_not_called()
+
+    def test_close_failure_does_not_change_verified_or_failed_result(self):
+        self.client.close.side_effect = RuntimeError("private-close-marker")
+        self.assertTrue(self.monitor.verify_current("fixture", TARGETS))
+        self.data.clear()
+        with self.assertRaises(monitor.MonitoringError) as failed:
+            self.monitor.verify_current("fixture", TARGETS)
+        self.assertNotIn("private-close-marker", str(failed.exception))
+        self.assertEqual(self.client.close.call_count, 2)
+
+    def test_poll_stops_at_exact_deadline_and_closes_client(self):
+        self.monitor.timeout = 5
+        self.data.clear()
+        with patch.object(monitor.time, "monotonic", side_effect=[0, 0, 5]):
+            with self.assertRaises(monitor.MonitoringError):
+                self.monitor.refresh_and_verify("fixture", TARGETS)
+        self.sleep.assert_called_once_with(5)
+        actions = [invocation.args[0][3] for invocation in self.run.call_args_list]
+        self.assertEqual(actions, ["restart", "is-active", "is-active"])
+        self.assertEqual(self.client.query_api.return_value.query.call_count, 2)
+        self.client.close.assert_called_once()
+
+    def test_refresh_queries_from_restart_completion_and_does_not_verify_failed_restart(self):
+        clock = [NOW]
+
+        def complete_restart(arguments, **kwargs):
+            if arguments[3] == "restart":
+                clock[0] = NOW + 10
+
+        self.run.side_effect = complete_restart
+        self.data[:] = rows(NOW + 10)
+        with patch.object(monitor.time, "time", side_effect=lambda: clock[0]):
+            self.assertTrue(self.monitor.refresh_and_verify("fixture", TARGETS))
+        query = self.client.query_api.return_value.query.call_args.kwargs["query"]
+        self.assertIn('range(start: time(v: "2027-01-15T08:00:10+00:00"))', query)
+        self.factory.reset_mock()
+        self.run.side_effect = RuntimeError("private-restart-marker")
+        with self.assertRaises(monitor.MonitoringError) as failed:
+            self.monitor.refresh_and_verify("fixture", TARGETS)
+        self.assertNotIn("private-restart-marker", str(failed.exception))
+        self.factory.assert_not_called()
+
+    def test_interrupted_poll_closes_client_and_does_not_retry_restart(self):
+        self.client.query_api.return_value.query.side_effect = KeyboardInterrupt()
+        with self.assertRaises(KeyboardInterrupt):
+            self.monitor.refresh_and_verify("fixture", TARGETS)
+        self.sleep.assert_not_called()
+        self.client.close.assert_called_once()
+        self.assertEqual([call.args[0][3] for call in self.run.call_args_list], ["restart", "is-active"])
 
 
 if __name__ == "__main__":

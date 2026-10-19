@@ -1,6 +1,7 @@
 """Fixture-only tests: these never connect to a device or edit real NSOT."""
 
 from copy import deepcopy
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -217,6 +218,90 @@ class ConfigChangesTests(unittest.TestCase):
         self.inventory_path.write_text(INVENTORY.replace("vendor: Arista", "vendor: Cisco"))
         with self.assertRaisesRegex(changes.ChangeError, "Arista"):
             self.preview()
+
+    def test_get_device_accepts_textual_management_ipv4_without_changing_inventory(self):
+        for address in ("192.0.2.1", "10.23.4.5"):
+            with self.subTest(address=address):
+                inventory = yaml.safe_load(INVENTORY)
+                inventory["devices"]["R1"]["management"]["ipv4"] = address
+                self.inventory_path.write_text(yaml.safe_dump(inventory, sort_keys=False))
+                original = self.inventory_path.read_bytes()
+                loaded = changes.load_inventory()
+                before = deepcopy(loaded)
+
+                device = changes.get_device(loaded, "R1")
+
+                self.assertIs(device, loaded["devices"]["R1"])
+                self.assertEqual(device["management"]["ipv4"], address)
+                self.assertEqual(loaded, before)
+                # Vendor/platform inherited from network.defaults remain supported.
+                self.assertNotIn("vendor", device)
+                preview = self.preview()
+                self.assertEqual(preview["generated_commands"],
+                                 ["interface Ethernet2", "description new description"])
+                changes.credential_provider.get_credentials.assert_not_called()
+                changes.ConnectHandler.assert_not_called()
+                self.assertEqual(self.inventory_path.read_bytes(), original)
+                self.assertFalse(self.history.exists())
+                self.assertFalse(self.golden.exists())
+
+    def test_get_device_rejects_nontext_and_malformed_management_ipv4_safely(self):
+        # safe_dump/load preserves actual YAML types, including !!binary values.
+        values = (True, False, 3221225985, 0, b"\xc0\x00\x02\x01",
+                  None, 1.5, ["192.0.2.1"], {"address": "fixture-private-address"},
+                  "", "192.0.2.999", "192.0.2.1/24", "2001:db8::1",
+                  "fixture-private-address")
+        management_rows = [{"ipv4": value} for value in values] + [{}, None]
+        for management in management_rows:
+            with self.subTest(management=management):
+                inventory = yaml.safe_load(INVENTORY)
+                inventory["devices"]["R1"]["management"] = management
+                self.inventory_path.write_text(yaml.safe_dump(inventory, sort_keys=False))
+                original = self.inventory_path.read_bytes()
+                loaded = changes.load_inventory()
+                before = deepcopy(loaded)
+
+                with self.assertRaises(changes.ChangeError) as caught:
+                    changes.get_device(loaded, "R1")
+
+                self.assertEqual(str(caught.exception),
+                                 "The selected device has no valid management IPv4 address.")
+                self.assertNotIn("fixture-private-address", str(caught.exception))
+                self.assertTrue(caught.exception.__suppress_context__)
+                self.assertEqual(loaded, before)
+                self.assertEqual(self.inventory_path.read_bytes(), original)
+                changes.credential_provider.get_credentials.assert_not_called()
+                changes.ConnectHandler.assert_not_called()
+
+    def test_apply_revalidates_management_ipv4_before_credentials_or_connection(self):
+        for address in (True, 3221225985, b"\xc0\x00\x02\x01",
+                        {"address": "fixture-private-address"}, "fixture-private-address"):
+            with self.subTest(address=address):
+                self.inventory_path.write_text(INVENTORY)
+                preview = self.preview()
+                inventory = yaml.safe_load(INVENTORY)
+                inventory["devices"]["R1"]["management"]["ipv4"] = address
+                self.inventory_path.write_text(yaml.safe_dump(inventory, sort_keys=False))
+                original = self.inventory_path.read_bytes()
+                # Isolate real address revalidation from the separate stale-digest gate.
+                preview["inventory_digest"] = hashlib.sha256(original).hexdigest()
+                with patch.object(changes.credential_provider, "get_credentials",
+                                  side_effect=AssertionError("Credential access forbidden")) as provider:
+                    result = changes.apply_change(preview)
+
+                provider.assert_not_called()
+                changes.ConnectHandler.assert_not_called()
+                self.connection.send_config_set.assert_not_called()
+                self.assertEqual(result["error"],
+                                 "The selected device has no valid management IPv4 address.")
+                self.assertNotIn("fixture-private-address", json.dumps(result))
+                for field in ("backup_status", "apply_status", "verification_status", "nsot_status"):
+                    self.assertEqual(result[field], "not_attempted")
+                self.assertEqual(result["generated_commands"], [])
+                self.assertEqual(self.inventory_path.read_bytes(), original)
+                self.assertFalse(self.history.exists())
+                self.assertFalse(self.golden.exists())
+                self.assertFalse((self.inventory_path.parent / "backups").exists())
 
     def test_success_backs_up_then_applies_verifies_updates_and_logs(self):
         preview = self.preview()

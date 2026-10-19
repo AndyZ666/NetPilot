@@ -127,6 +127,30 @@ class EmailContentTests(unittest.TestCase):
         email.notification_content(None)
         email.notification_content({"stage": [], "error": {}})
 
+    def test_extra_devices_cannot_replace_missing_fleet_success_evidence(self):
+        report = success()
+        del report["device_states"]["R1"]
+        report["device_states"]["fixture-private-foreign-device"] = {"state": "verified_new"}
+        subject, body = email.notification_content(report)
+        self.assertEqual(subject, "NetPilot Password Rotation Failed")
+        self.assertIn("Nine-device success count: 8/9", body)
+        self.assertNotIn("fixture-private", body)
+
+    def test_latest_failure_event_wins_over_earlier_failure_and_later_information(self):
+        report = {"phase": "RECOVERY_REQUIRED", "stage": "precheck", "error": "credentials",
+                  "audit_events": [
+                      {"result": "FAIL", "operation": "rotate", "device": "R1", "error": "device_write"},
+                      {"result": "FAIL", "operation": "rollback", "device": "R2", "error": "unreachable"},
+                      {"result": "INFO", "operation": "fixture-private-command", "device": "R3"},
+                      "fixture-private-malformed-event",
+                  ]}
+        subject, body = email.notification_content(report)
+        self.assertEqual(subject, "NetPilot Password Rotation Failed")
+        for expected in ("Failed device: R2", "Failed stage: rollback", "Sanitized error category: unreachable"):
+            self.assertIn(expected, body)
+        self.assertNotIn("fixture-private", body)
+        self.assertNotIn("Failed device: R1", body)
+
 
 class EmailDeliveryTests(unittest.TestCase):
     def setUp(self):
@@ -193,6 +217,88 @@ class EmailDeliveryTests(unittest.TestCase):
         self.assertIn("No password rotation was performed", message.get_content())
         self.assertIn("PASS | notification | status=sent", output.getvalue())
         self.assertNotIn("fixture-secret", output.getvalue())
+
+    def test_connection_failures_do_not_retry_or_switch_transport(self):
+        for security, failure in (
+                ("starttls", TimeoutError("fixture-secret")),
+                ("ssl", smtplib.SMTPConnectError(421, b"fixture-secret"))):
+            with self.subTest(security=security):
+                self.smtp.reset_mock()
+                self.smtp_ssl.reset_mock()
+                self.smtp.side_effect = self.smtp_ssl.side_effect = None
+                self.load.return_value = email.Settings(
+                    "smtp.example.invalid", 587 if security == "starttls" else 465,
+                    "fixture-user", "fixture-secret", "sender@example.invalid",
+                    "operator@example.invalid", security)
+                selected, other = (self.smtp, self.smtp_ssl) if security == "starttls" else (self.smtp_ssl, self.smtp)
+                selected.side_effect = failure
+                result = email.send_notification(success())
+                self.assertEqual(result, {"status": "failed", "error": "smtp_delivery_failed"})
+                selected.assert_called_once()
+                selected.return_value.__enter__.assert_not_called()
+                other.assert_not_called()
+
+    def test_send_failures_are_sanitized_close_connection_and_do_not_retry(self):
+        for failure in (smtplib.SMTPRecipientsRefused({"operator@example.invalid": (550, b"fixture-secret")}),
+                        smtplib.SMTPDataError(554, b"fixture-secret"),
+                        smtplib.SMTPServerDisconnected("fixture-secret")):
+            with self.subTest(failure=type(failure).__name__):
+                self.smtp.reset_mock()
+                self.connection.send_message.side_effect = failure
+                result = email.send_notification(success())
+                self.assertEqual(result, {"status": "failed", "error": "smtp_delivery_failed"})
+                self.connection.login.assert_called_once_with("fixture-user", "fixture-secret")
+                self.connection.send_message.assert_called_once()
+                self.smtp.return_value.__exit__.assert_called_once()
+                self.smtp.assert_called_once()
+                self.smtp_ssl.assert_not_called()
+                message = self.connection.send_message.call_args.args[0]
+                self.assertNotIn("fixture-secret", message.as_string())
+
+    def test_unsupported_starttls_or_ehlo_failure_never_authenticates(self):
+        for stage in ("ehlo_before_tls", "starttls", "ehlo_after_tls"):
+            with self.subTest(stage=stage):
+                self.smtp.reset_mock()
+                self.connection.ehlo.side_effect = None
+                self.connection.starttls.side_effect = None
+                expected = "smtp_delivery_failed"
+                if stage == "starttls":
+                    self.connection.starttls.side_effect = smtplib.SMTPNotSupportedError("fixture-secret")
+                    expected = "smtp_tls_failed"
+                else:
+                    responses = [] if stage == "ehlo_before_tls" else [None]
+                    self.connection.ehlo.side_effect = responses + [smtplib.SMTPHeloError(501, b"fixture-secret")]
+                self.assertEqual(email.send_notification(success()), {"status": "failed", "error": expected})
+                self.connection.login.assert_not_called()
+                self.connection.send_message.assert_not_called()
+                self.smtp.return_value.__exit__.assert_called_once()
+                self.smtp_ssl.assert_not_called()
+
+    def test_invalid_or_unreadable_configuration_prevents_smtp_construction(self):
+        for failure, code in ((email.SettingsError("unsafe_configuration_file"), "unsafe_configuration_file"),
+                              (ValueError("fixture-secret"), "invalid_configuration")):
+            with self.subTest(failure=type(failure).__name__):
+                self.load.side_effect = failure
+                self.assertEqual(email.send_notification(success()), {"status": "failed", "error": code})
+                self.smtp.assert_not_called()
+                self.smtp_ssl.assert_not_called()
+
+    def test_test_cli_returns_failure_for_authentication_error_without_leaking_server_response(self):
+        self.connection.login.side_effect = smtplib.SMTPAuthenticationError(535, b"fixture-secret")
+        with redirect_stdout(StringIO()) as output:
+            code = email.main(["--test", "--execute"])
+        self.assertEqual(code, 1)
+        self.assertEqual(output.getvalue(), "FAIL | notification | error=smtp_authentication_failed\n")
+        self.connection.send_message.assert_not_called()
+        self.smtp.assert_called_once()
+
+    def test_uncertain_delivery_on_connection_close_does_not_retry_message(self):
+        self.smtp.return_value.__exit__.side_effect = OSError("fixture-secret")
+        result = email.send_notification(success())
+        self.assertEqual(result, {"status": "failed", "error": "smtp_delivery_failed"})
+        self.connection.send_message.assert_called_once()
+        self.smtp.assert_called_once()
+        self.smtp_ssl.assert_not_called()
 
 
 if __name__ == "__main__":

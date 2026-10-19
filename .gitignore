@@ -11,6 +11,13 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Local code coverage data and reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+coverage.json
+
 # Environment / secrets
 .env
 .env.*

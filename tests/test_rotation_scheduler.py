@@ -1,5 +1,6 @@
 """Offline scheduling checks; synthetic journals and a fake fleet engine only."""
 
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 import io
 import json
@@ -410,6 +411,183 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(output.getvalue())["blocked_reason"], "no_successful_baseline")
         self.assertFalse(self.journal.root.exists())
+
+    def test_latest_success_uses_timestamp_not_archive_filename_or_active_position(self):
+        self.save(record(rotation_id="f" * 32, ended_at=BASE - timedelta(days=5)))
+        with self.journal.operation():
+            self.journal.finish_completed(self.journal.load())
+        self.save(record(rotation_id="2" * 32, ended_at=BASE + timedelta(days=1)))
+        with self.journal.operation():
+            self.journal.finish_completed(self.journal.load())
+        self.save(record(rotation_id="3" * 32, ended_at=BASE))
+
+        report = scheduler.status(self.journal, DUE)
+        self.assertEqual(report["last_success_rotation_id"], "2" * 32)
+        self.assertEqual(report["next_due_at"], "2026-03-03T12:00:00+00:00")
+        self.assertFalse(report["due"])
+        self.assertTrue(report["armed"])
+        self.assertEqual(self.attempt()["action"], "skipped")
+        self.assertEqual(self.engine.calls, [])
+        self.notify.assert_not_called()
+
+    def test_non_utc_or_naive_scheduler_clock_is_rejected_before_state_access(self):
+        for now in (datetime(2026, 3, 2, 12),
+                    datetime(2026, 3, 2, 12, tzinfo=timezone(timedelta(hours=1)))):
+            with self.subTest(now=now), patch.object(self.journal, "load") as load:
+                with self.assertRaisesRegex(StateError, "UTC clock"):
+                    scheduler.run(self.engine, authorized=True, now=now, notify=self.notify)
+                load.assert_not_called()
+        self.assertFalse(self.journal.root.exists())
+        self.assertEqual(self.engine.calls, [])
+        self.notify.assert_not_called()
+
+    def test_corrupt_active_or_historical_state_prevents_attempt_and_notification(self):
+        for location in ("active", "history"):
+            with self.subTest(location=location), tempfile.TemporaryDirectory() as directory:
+                journal = JournalStore(Path(directory) / "rotation")
+                with journal.operation():
+                    journal.save(record())
+                    if location == "history":
+                        journal.finish_completed(journal.load())
+                path = journal.path if location == "active" else journal.root / "history" / ("1" * 32 + ".json")
+                path.write_text("fixture-private-invalid-state")
+                engine = FakeEngine(journal)
+                with self.assertRaises(StateError) as error:
+                    scheduler.run(engine, authorized=True, now=DUE, notify=self.notify)
+                self.assertNotIn("fixture-private", str(error.exception))
+                self.assertEqual(engine.calls, [])
+                self.assertFalse((journal.root / scheduler.MARKER).exists())
+        self.notify.assert_not_called()
+
+    def test_marker_fsync_failure_prevents_rotation_and_leaves_retry_blocked(self):
+        self.save(record())
+        original = self.journal.path.read_bytes()
+        for failure_at in (1, 2):  # Marker contents, then its directory entry.
+            with self.subTest(failure_at=failure_at):
+                with self.journal.operation():
+                    outcomes = [None] * (failure_at - 1) + [OSError("fixture-private-storage-error")]
+                    with patch.object(scheduler.os, "fsync", side_effect=outcomes) as fsync:
+                        with self.assertRaises(OSError):
+                            self.attempt()
+                    self.assertEqual(fsync.call_count, failure_at)
+                self.assertEqual(self.engine.calls, [])
+                self.notify.assert_not_called()
+                self.assertEqual(self.journal.path.read_bytes(), original)
+                self.assertEqual(self.attempt()["blocked_reason"], "operator_rearm_required")
+                (self.journal.root / scheduler.MARKER).unlink()
+
+    def test_concurrent_new_commit_is_rechecked_using_actual_state_after_lock(self):
+        self.save(record())
+        operation = self.journal.operation
+
+        @contextmanager
+        def commit_before_acquisition():
+            # A manual writer finishes between the first due check and our lock.
+            with operation():
+                self.journal.save(record(rotation_id="3" * 32, ended_at=DUE))
+                yield self.journal
+
+        with patch.object(self.journal, "operation", side_effect=commit_before_acquisition):
+            report = self.attempt()
+        self.assertEqual(self.engine.calls, [])
+        self.notify.assert_not_called()
+        self.assertEqual(report["action"], "skipped")
+        self.assertEqual(report["last_success_rotation_id"], "3" * 32)
+        self.assertFalse(report["due"])
+        self.assertIsNone(scheduler._marker(self.journal))
+
+    def test_claimed_commit_without_new_durable_journal_is_failure(self):
+        self.save(record())
+        self.engine.effect = Mock(return_value=RotationEngine._summary(record(rotation_id="2" * 32)))
+        report = self.attempt()
+        self.assertEqual(report["result"], "FAIL")
+        self.assertEqual(report["phase"], "ERROR")
+        self.assertIsNone(report["rotation_id"])
+        self.assertTrue(report["manual_recovery_required"])
+        self.assertFalse(report["scheduler_armed"])
+        self.assertEqual(self.journal.load()["rotation_id"], "1" * 32)
+        self.assertEqual(self.attempt()["action"], "skipped")
+        self.assertEqual(self.engine.calls, [True])
+        self.notify.assert_called_once()
+
+    def test_interrupt_after_durable_commit_preserves_success_and_prevents_duplicate_notice(self):
+        self.save(record())
+
+        def commit_then_interrupt():
+            self.engine.succeed()
+            raise KeyboardInterrupt("fixture-private-interruption")
+
+        self.engine.effect = commit_then_interrupt
+        report = self.attempt()
+        self.assertEqual(report["result"], "PASS")
+        self.assertEqual(report["rotation_id"], "2" * 32)
+        self.assertFalse(report["manual_recovery_required"])
+        self.assertTrue(report["scheduler_armed"])
+        self.assertNotIn("fixture-private", json.dumps(report))
+        self.assertEqual(self.attempt()["action"], "skipped")
+        self.assertEqual(self.engine.calls, [True])
+        self.notify.assert_called_once()
+
+    def cli_run(self):
+        # The scheduler is real; the fleet engine is the external operation here.
+        with patch.object(scheduler, "STATE_DIR", self.journal.root), \
+                patch.object(scheduler, "datetime", wraps=datetime) as clock, \
+                patch.object(scheduler.RotationEngine, "__new__", return_value=self.engine), \
+                patch("security.rotation_adapters.OnePasswordStore"), \
+                patch("security.rotation_adapters.NetmikoDeviceAdapter"), \
+                patch("security.rotation_monitoring.ManagedTelegrafMonitoring"), \
+                patch("security.rotation_email.send_notification", self.notify), \
+                patch.object(scheduler.signal, "signal", return_value="previous-handler") as signal, \
+                patch("sys.stdout", new_callable=io.StringIO) as output:
+            clock.now.return_value = DUE
+            code = scheduler.main(["run", "--execute"])
+        self.assertEqual(signal.call_args_list, [
+            unittest.mock.call(scheduler.signal.SIGTERM, scheduler._interrupted),
+            unittest.mock.call(scheduler.signal.SIGTERM, "previous-handler"),
+        ])
+        return code, json.loads(output.getvalue())
+
+    def test_run_cli_returns_success_when_notification_fails_after_commit(self):
+        self.save(record())
+        self.notify.side_effect = RuntimeError("fixture-private-smtp-error")
+        code, report = self.cli_run()
+        self.assertEqual(code, 0)
+        self.assertEqual(report["result"], "PASS")
+        self.assertEqual(report["phase"], "COMMITTED")
+        self.assertEqual(report["notification"], {"status": "failed", "error": "notification_failed"})
+        self.assertNotIn("fixture-private", json.dumps(report))
+        self.assertEqual(self.engine.calls, [True])
+        self.notify.assert_called_once()
+
+    def test_run_cli_returns_failure_after_interruption_and_restores_signal_handler(self):
+        self.save(record())
+        self.engine.effect = Mock(side_effect=KeyboardInterrupt("fixture-private-interruption"))
+        code, report = self.cli_run()
+        self.assertEqual(code, 1)
+        self.assertEqual(report["result"], "FAIL")
+        self.assertEqual(report["error"], "interrupted")
+        self.assertTrue(report["manual_recovery_required"])
+        self.assertFalse(report["scheduler_armed"])
+        self.assertNotIn("fixture-private", json.dumps(report))
+        self.notify.assert_called_once()
+
+    def test_status_cli_returns_sanitized_failure_for_corrupt_journal_without_live_adapters(self):
+        self.save(record())
+        self.journal.path.write_text("fixture-private-corrupt-json")
+        with patch.object(scheduler, "STATE_DIR", self.journal.root), \
+                patch("security.rotation_adapters.OnePasswordStore") as vault, \
+                patch("security.rotation_adapters.NetmikoDeviceAdapter") as device, \
+                patch("security.rotation_monitoring.ManagedTelegrafMonitoring") as monitoring, \
+                patch("sys.stdout", new_callable=io.StringIO) as output:
+            code = scheduler.main(["status"])
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(output.getvalue()), {
+            "result": "FAIL", "error": "journal", "stage": "scheduler", "manual_recovery_required": True,
+        })
+        vault.assert_not_called()
+        device.assert_not_called()
+        monitoring.assert_not_called()
+        self.assertFalse((self.journal.root / scheduler.MARKER).exists())
 
 
 if __name__ == "__main__":
