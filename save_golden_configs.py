@@ -3,6 +3,7 @@
 
 from pathlib import Path
 from datetime import datetime
+import re
 import sys
 import yaml
 
@@ -47,34 +48,48 @@ def load_inventory():
 # Validate returned running config
 # ============================================================
 
-def validate_running_config(hostname, config):
-    if not config or not config.strip():
+def validate_running_config(hostname, config, *, expected_hostname=None):
+    # Existing callers also use hostname as a display label ("selected device").
+    # Only collectors that know the expected identity request a hostname match.
+    if not isinstance(config, str) or not config.strip():
         raise RuntimeError(
-            f"{hostname}: running-config response was empty."
+            f"{hostname}: running-config response was empty or not text."
         )
 
-    error_strings = [
-        "% invalid input",
-        "privileged mode required",
-        "% incomplete command",
-        "% ambiguous command",
-        "authorization failed",
-        "permission denied",
-    ]
+    captured_hostnames = []
+    in_banner = False
+    for raw_line in config.splitlines():
+        line = raw_line.strip()
+        # EOS login/MOTD banners are literal text terminated by EOF, not CLI.
+        if in_banner:
+            if line == "EOF":
+                in_banner = False
+            continue
+        if re.fullmatch(r"banner[ \t]+(?:login|motd)", line, re.I):
+            in_banner = True
+            continue
 
-    config_lower = config.lower()
-
-    for error in error_strings:
-        if error in config_lower:
+        # Diagnose response lines, not error words inside descriptions/comments.
+        error = re.match(
+            r"(?:%\s*)?(?:error:\s*)?(invalid input|privileged mode required|"
+            r"incomplete command|ambiguous command|authorization failed|permission denied)\b",
+            line, re.I,
+        )
+        if error:
             raise RuntimeError(
-                f"{hostname}: device returned CLI error: {error}"
+                f"{hostname}: device returned CLI error: {error.group(1).lower()}"
             )
+        identity = re.fullmatch(r"hostname[ \t]+(\S+)", line, re.I)
+        if identity:
+            captured_hostnames.append(identity.group(1))
 
-    # Basic sanity check:
-    # A valid EOS running config should normally contain hostname.
-    if "hostname " not in config_lower:
+    if in_banner or len(captured_hostnames) != 1:
         raise RuntimeError(
             f"{hostname}: output does not look like a valid running-config."
+        )
+    if expected_hostname is not None and captured_hostnames[0] != expected_hostname:
+        raise RuntimeError(
+            f"{hostname}: running-config hostname does not match the requested device."
         )
 
 
@@ -142,7 +157,7 @@ def get_running_config(hostname, device, username, password):
             strip_command=True,
         )
 
-        validate_running_config(hostname, config)
+        validate_running_config(hostname, config, expected_hostname=hostname)
 
         return config
 

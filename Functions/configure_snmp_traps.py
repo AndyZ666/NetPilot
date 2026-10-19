@@ -8,6 +8,7 @@ Supports audit-only mode (default) and configuration application mode (--apply).
 Safety: Non-destructive by default, idempotent when applying changes.
 """
 
+import ipaddress
 import json
 import subprocess
 import sys
@@ -151,13 +152,13 @@ def validate_device_name(name: str) -> bool:
 
 def validate_ipv4(ip: str) -> bool:
     """Validate IPv4 address format."""
-    try:
-        parts = ip.split('.')
-        if len(parts) != 4:
-            return False
-        return all(0 <= int(part) <= 255 for part in parts)
-    except (ValueError, AttributeError):
+    if not isinstance(ip, str):
         return False
+    try:
+        ipaddress.IPv4Address(ip)
+    except ipaddress.AddressValueError:
+        return False
+    return True
 
 
 def validate_inventory(devices_data: List[Dict[str, Any]]) -> List[Device]:

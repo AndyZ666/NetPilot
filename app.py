@@ -311,7 +311,10 @@ def _serialize_removed_device(original, inventory, device_node, hostname):
     # sibling) but not when the following content is a dedented key, which would otherwise
     # leave that dedented line with orphaned leading whitespace.
     start = source.rfind("\n", 0, key_node.start_mark.index) + 1
-    end = source.rfind("\n", 0, value_node.end_mark.index) + 1
+    end = value_node.end_mark.index
+    # At EOF, include the final line even when it has no trailing newline.
+    if end != len(source):
+        end = source.rfind("\n", 0, end) + 1
     if not (0 <= start < end <= len(source)):
         raise InventoryWriteError("The inventory layout cannot be safely changed for this device. No changes were made.")
     updated = (source[:start] + source[end:]).encode("utf-8")

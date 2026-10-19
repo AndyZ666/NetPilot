@@ -22,7 +22,7 @@ vlan {{ vlan_id }}
 {% for ifname, iface in device.interfaces.items() %}
 interface {{ ifname }}
 {% if iface.description %}   description {{ iface.description }}
-{% endif %}{% if iface.forwarding_model == 'routed' and not ifname.startswith('Vlan') and not ifname.startswith('Management') %}   no switchport
+{% endif %}{% if iface.forwarding_model == 'routed' and ifname.startswith(('Ethernet', 'Port-Channel')) %}   no switchport
 {% endif %}{% if iface.forwarding_model == 'bridged' and iface.switchport is defined %}{% if iface.switchport.mode == 'access' %}   switchport mode access
    switchport access vlan {{ iface.switchport.access_vlan }}
 {% elif iface.switchport.mode == 'trunk' %}   switchport mode trunk
