@@ -13,7 +13,15 @@
     <div class="device-title-group"><span class="detail-device-icon {% if device.kind == 'switch' %}icon-violet{% else %}icon-blue{% endif %}"><i class="bi bi-{{ 'router' if device.kind == 'router' else 'ethernet' if device.kind == 'switch' else 'hdd-network' }}" aria-hidden="true"></i></span><div><span class="eyebrow">DEVICE DETAILS</span><h1>{{ device.hostname }}</h1><p>{{ device.role or 'Network equipment' }}{% if device.vendor %} <span class="detail-title-divider">/</span> {{ device.vendor }}{% endif %}{% if device.platform %} {{ device.platform }}{% endif %}</p></div></div>
     <span class="inventory-managed"><i class="bi bi-bookmark-check" aria-hidden="true"></i> Managed</span>
   </div>
-  <div class="detail-source-note"><i class="bi bi-database" aria-hidden="true"></i> Information from your Network Source of Truth <span>·</span> Live device status is not checked</div>
+  <section class="detail-card surface device-live" aria-labelledby="live-state-title" data-live-url="{{ url_for('device_live', hostname=device.hostname) }}" data-refresh-url="{{ url_for('refresh_device_live', hostname=device.hostname) }}" data-live-csrf="{{ live_csrf_token }}">
+    <div class="detail-card-heading"><span class="detail-section-icon icon-cyan"><i class="bi bi-activity" aria-hidden="true"></i></span><div><h2 id="live-state-title">Live / Observed State</h2><p>Read-only SSH observations, cached for up to 30 seconds. Configured does not mean operational.</p></div></div>
+    <p class="inventory-muted" data-live-status role="status">Live status not refreshed.</p>
+    <div class="protocol-tags" data-live-protocols></div>
+    <p class="inventory-muted"><small data-live-time>Last successful refresh: not yet.</small></p>
+    <button type="button" class="btn btn-outline-secondary btn-sm" data-live-refresh>Refresh Live</button>
+    <noscript><p>Enable JavaScript to retrieve live state. The inventory below remains available.</p></noscript>
+  </section>
+  <div class="detail-source-note"><i class="bi bi-database" aria-hidden="true"></i> Intended / Inventory State <span>·</span> Information from your Network Source of Truth</div>
 
   <div class="device-info-grid">
     <section class="detail-card surface" aria-labelledby="device-information-title">
@@ -79,7 +87,7 @@
     </div>
   </section>
   {% endif %}
-  <div class="inventory-help"><i class="bi bi-info-circle" aria-hidden="true"></i><p>“Not specified” means the value is not recorded in the available inventory data. No live device information is requested on this page.</p></div>
+  <div class="inventory-help"><i class="bi bi-info-circle" aria-hidden="true"></i><p>“Not specified” means the value is not recorded in the available inventory data. The Live / Observed State above is independent and never overwrites the Source of Truth.</p></div>
 
   <section class="danger-zone surface" aria-labelledby="danger-zone-title">
     <div class="detail-card-heading"><span class="detail-section-icon icon-rose"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span><div><h2 id="danger-zone-title">Danger Zone</h2><p>Irreversible inventory actions for this device.</p></div></div>
@@ -112,4 +120,5 @@
   cancelBtn.addEventListener('click', () => dialog.close());
 })();
 </script>
+<script src="{{ url_for('static', filename='live-devices.js') }}" defer></script>
 {% endblock %}

@@ -15,12 +15,14 @@ import sys
 import tempfile
 import threading
 import time
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
-from flask import Flask, flash, redirect, render_template, request, session, url_for
+from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
 import yaml
 import config_changes
 import health_checks
+from lab8 import ztp_gui
+import live_device_state
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -357,7 +359,7 @@ def create_nsot_backup(original_bytes, inventory_path):
     return backup_path
 
 
-def save_inventory_safely(form, path=None):
+def save_inventory_safely(form, path=None, *, ztp_record=None):
     """Serialize web writers, back up, verify a temp file, then atomically replace."""
     inventory_path = Path(path if path is not None else INVENTORY_PATH)
     with _INVENTORY_WRITE_LOCK:
@@ -372,9 +374,17 @@ def save_inventory_safely(form, path=None):
             fcntl.flock(directory_descriptor, fcntl.LOCK_EX)
             original, inventory, device_node = _read_writable_inventory(inventory_path)
             errors = validate_new_device(form, inventory)
+            if ztp_gui.registration_conflict(form.get("hostname", ""), form.get("management_ip", ""),
+                    (ztp_record or {}).get("onboarding", {}).get("job_id")):
+                errors["management_ip"] = "The hostname or IP is reserved for an onboarding attempt."
             if errors:
                 raise DeviceValidationError(errors)
             record = build_new_device(form)
+            if ztp_record is not None:
+                # Called only after the worker verifies admin SSH and saved Day-0.
+                record["management"] = deepcopy(ztp_record["management"])
+                record["onboarding"] = deepcopy(ztp_record["onboarding"])
+                record["interfaces"] = {"Management0": {"admin_state": "up", "ipv4": [record["management"]["ipv4_prefix"]]}}
             updated, expected = _serialize_added_device(original, inventory, device_node, record)
             backup_path = create_nsot_backup(original, inventory_path)
             descriptor, name = tempfile.mkstemp(prefix=".devices-", suffix=".yml.tmp", dir=inventory_path.parent)
@@ -806,6 +816,7 @@ def devices():
         devices=normalize_inventory(inventory),
         stats=compute_dashboard_statistics(inventory),
         inventory_available=inventory is not None,
+        live_csrf_token=_live_state_token(),
     )
 
 
@@ -824,7 +835,58 @@ def device_detail(hostname):
         requested_hostname=hostname,
         inventory_available=inventory is not None,
         csrf_token=token,
+        live_csrf_token=_live_state_token(),
     ), 200 if device else 404
+
+
+def _live_state_token():
+    token = session.get("live_state_csrf")
+    if not isinstance(token, str):
+        token = session["live_state_csrf"] = secrets.token_hex(32)
+    return token
+
+
+def _local_management_request():
+    """Do not trust forwarded headers or arbitrary Host names for local actions."""
+    try:
+        return (ipaddress.ip_address(request.remote_addr or "").is_loopback
+                and urlsplit("//" + request.host).hostname in {"localhost", "127.0.0.1", "::1"})
+    except ValueError:
+        return False
+
+
+def _live_device_response(hostname, force=False):
+    """Inventory-selected read-only refreshes are restricted to the local GUI."""
+    result, status = None, 200
+    if not _local_management_request():
+        result, status = {"error": "Live status is available only through the local NetPilot GUI."}, 403
+    elif force:
+        expected = session.get("live_state_csrf")
+        submitted = request.form.get("csrf_token", "")
+        if not isinstance(expected, str) or not secrets.compare_digest(expected.encode(), submitted.encode()):
+            result, status = {"error": "Refresh could not be verified. Reload the page and try again."}, 403
+    if result is None:
+        inventory = load_inventory()
+        device = next((item for item in normalize_inventory(inventory) if item["hostname"] == hostname), None)
+        if inventory is None:
+            result, status = {"error": "Live status unavailable. The inventory could not be loaded."}, 503
+        elif device is None:
+            result, status = {"error": "Live status unavailable. Device is not in the inventory."}, 404
+        else:
+            result = live_device_state.observed_state(device, force=force)
+    response = jsonify(result)
+    response.headers["Cache-Control"] = "no-store"
+    return response, status
+
+
+@app.get("/devices/<hostname>/live")
+def device_live(hostname):
+    return _live_device_response(hostname)
+
+
+@app.post("/devices/<hostname>/refresh-live")
+def refresh_device_live(hostname):
+    return _live_device_response(hostname, force=True)
 
 
 @app.post("/devices/<hostname>/remove")
@@ -900,7 +962,76 @@ def add_device():
         supported_templates=supported_templates,
         csrf_token=token,
         inventory_available=inventory_available,
+        ztp_preview=session.get("ztp_preview"),
+        ztp_error=session.pop("ztp_error", None),
+        ztp_jobs=ztp_gui.recent_jobs() if _local_management_request() else [],
     ), status
+
+
+def _ztp_csrf_valid():
+    expected = session.get("add_device_csrf")
+    submitted = request.form.get("csrf_token", "")
+    return (_local_management_request() and isinstance(expected, str)
+            and secrets.compare_digest(expected.encode(), submitted.encode()))
+
+
+@app.post("/devices/ztp/preview")
+def preview_ztp_device():
+    if not _ztp_csrf_valid():
+        return "This local onboarding form could not be verified.", 403
+    session.pop("ztp_preview", None)
+    try:
+        preview = ztp_gui.preview(request.form.get("hostname", "").strip(), request.form.get("platform", ""))
+        session["ztp_preview"] = {key: preview[key] for key in ("job_id", "hostname", "management_ip")}
+    except Exception as error:
+        session["ztp_error"] = str(error) if isinstance(error, ztp_gui.ZtpError) else "ZTP preparation failed safely. Check local helper setup and inventory."
+    return redirect(url_for("add_device", mode="ztp"), code=303)
+
+
+def _register_ztp_device(record):
+    form = {"hostname": record["hostname"], "management_ip": record["management"]["ipv4"],
+            "role": "edge_router", "vendor": "Arista", "platform": "cEOSLab",
+            "template": "templates/arista_ceos.j2", "protocols": []}
+    save_inventory_safely(form, ztp_record=record)
+
+
+@app.post("/devices/ztp/start")
+def start_ztp_device():
+    if not _ztp_csrf_valid():
+        return "This local onboarding form could not be verified.", 403
+    preview = session.pop("ztp_preview", None)
+    if not isinstance(preview, dict) or preview.get("job_id") != request.form.get("job_id"):
+        return "Review the device before provisioning; this submission may already have been used.", 409
+    session["add_device_csrf"] = secrets.token_hex(32)
+    try:
+        ztp_gui.start(preview["job_id"], request.form.get("recovery_password", ""), _register_ztp_device)
+    except Exception as error:
+        session["ztp_error"] = str(error) if isinstance(error, ztp_gui.ZtpError) else "Onboarding could not start."
+    return redirect(url_for("ztp_device_status", job_id=preview["job_id"]), code=303)
+
+
+@app.route("/devices/ztp/jobs/<job_id>", methods=["GET", "POST"])
+def ztp_device_status(job_id):
+    if not _local_management_request():
+        return "ZTP is available only through the local GUI.", 403
+    token = session.setdefault("add_device_csrf", secrets.token_hex(32))
+    error = session.pop("ztp_error", None)
+    try:
+        job = ztp_gui.status(job_id)
+        if request.method == "POST":
+            if not _ztp_csrf_valid():
+                return "This retry could not be verified.", 403
+            ztp_gui.start(job_id, request.form.get("recovery_password", ""), _register_ztp_device)
+            session["add_device_csrf"] = secrets.token_hex(32)
+            return redirect(url_for("ztp_device_status", job_id=job_id), code=303)
+    except Exception as failure:
+        error = str(failure) if isinstance(failure, ztp_gui.ZtpError) else "Onboarding status is unavailable."
+        if 'job' not in locals():
+            return error, 404
+    if request.args.get("format") == "json":
+        return jsonify({key: job.get(key) for key in ("job_id", "hostname", "management_ip", "state", "message", "updated_at", "started")})
+    return render_template("ztp_status.html", page_title="ZTP onboarding", active_page="add_device",
+                           job=job, error=error, csrf_token=token)
 
 
 def _operation_devices(inventory):
@@ -914,6 +1045,7 @@ def _operation_devices(inventory):
     display_inventory = dict(inventory)
     display_inventory["devices"] = {
         name: {**record, "hostname": name} for name, record in records.items()
+        if config_changes.device_is_active(record)
     }
     return normalize_inventory(display_inventory)
 
@@ -1223,7 +1355,8 @@ def _basic_change_context(inventory, selected_hostname=""):
     records = _mapping(_mapping(inventory).get("devices"))
     devices = []
     for hostname, record in records.items():
-        if not isinstance(hostname, str) or not _SAFE_HOSTNAME.fullmatch(hostname):
+        if (not isinstance(hostname, str) or not _SAFE_HOSTNAME.fullmatch(hostname)
+                or not config_changes.device_is_active(record)):
             continue
         interfaces = [
             {"name": name, "description": _text(_mapping(interface).get("description")),
@@ -1359,6 +1492,8 @@ def golden_snapshot(hostname, filename):
 
 @app.after_request
 def protect_configuration_responses(response):
+    if request.path.startswith('/devices/ztp/') or request.path == '/devices/add':
+        response.headers['Cache-Control'] = 'no-store'
     if request.endpoint in {"configuration", "golden_configs", "golden_snapshot"}:
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"

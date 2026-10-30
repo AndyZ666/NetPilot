@@ -1,5 +1,11 @@
 name: pilot-network
 
+# Reuse the existing Docker management network and both observed IPAM subnets.
+mgmt:
+  network: clab
+  ipv4-subnet: 172.20.20.0/24
+  ipv6-subnet: 3fff:172:20:20::/64
+
 topology:
   kinds:
     ceos:
@@ -24,6 +30,18 @@ topology:
       
     R5:
       kind: ceos
+
+    # Pending Lab 8 routers: native ZTP, with Ethernet1 reserved for bootstrap.
+    R6:
+      kind: ceos
+      image-pull-policy: Never
+      mgmt-ipv4: 172.20.20.30
+      suppress-startup-config: true
+    R7:
+      kind: ceos
+      image-pull-policy: Never
+      mgmt-ipv4: 172.20.20.31
+      suppress-startup-config: true
 
     # Layer3 switches
     S1:
@@ -72,6 +90,16 @@ topology:
         - sh -c "ip -6 route del default dev eth0 2>/dev/null || true"
         - udhcpc6 -i eth1 -b -p /run/udhcpc6-eth1.pid
 
+    H5:
+      kind: linux
+      image: wbitt/network-multitool:latest
+      exec:
+        - ip -4 addr flush dev eth1
+        - ip -6 addr flush dev eth1 scope global
+        - sh -c "ip route del default dev eth0 2>/dev/null || true"
+        - sh -c "ip -6 route del default dev eth0 2>/dev/null || true"
+        - udhcpc -i eth1 -b -p /run/udhcpc-eth1.pid
+        - udhcpc6 -i eth1 -b -p /run/udhcpc6-eth1.pid
 
     #Web-server
     web-server:
@@ -85,6 +113,22 @@ topology:
         - ip -6 route replace 2001:db8::/32 via 2001:db8:203:113::1 dev eth1 src 2001:db8:203:113::2 
         - sh -c 'echo "hello world" > /usr/share/nginx/html/index.html'
 
+    R8:
+      kind: ceos
+      image: ceos:4.36.2F
+      image-pull-policy: Never
+      mgmt-ipv4: 172.20.20.17
+      suppress-startup-config: true
+      labels:
+        netpilot-ztp-job-id: 8ecd7f23f8e9c46309ac373403c2f126
+    R9:
+      kind: ceos
+      image: ceos:4.36.2F
+      image-pull-policy: Never
+      mgmt-ipv4: 172.20.20.18
+      suppress-startup-config: true
+      labels:
+        netpilot-ztp-job-id: f13c77b05d2db5915556357d596f182e
   links:
   # ==========================================
   # 1. Edge & External Connectivity
@@ -137,3 +181,34 @@ topology:
   # S2 to H3 (VLAN 10) and H4 (VLAN 30)
   - endpoints: ["S2:eth3", "H3:eth1"]
   - endpoints: ["S2:eth4", "H4:eth1"]
+
+  - endpoints: ["R4:eth4", "R6:eth2"]
+  - endpoints: ["R6:eth3", "R7:eth2"]
+  - endpoints: ["R7:eth3", "H5:eth1"]
+
+  # Lab 8 bootstrap only: attach these host endpoints with connect-bootstrap.sh.
+  # Retire the temporary ztp-clients R6 before reusing npztp-r6 and its MAC.
+  - type: host
+    endpoint:
+      node: R6
+      interface: eth1
+      mac: aa:c1:ab:da:73:76
+    host-interface: npztp-r6
+  - type: host
+    endpoint:
+      node: R7
+      interface: eth1
+      mac: 02:00:00:08:00:07
+    host-interface: npztp-r7
+  - type: host
+    endpoint:
+      node: R8
+      interface: eth1
+      mac: 02:08:99:c6:6b:8e
+    host-interface: npztp-99c66b8e
+  - type: host
+    endpoint:
+      node: R9
+      interface: eth1
+      mac: 02:08:79:4d:9d:1a
+    host-interface: npztp-794d9d1a

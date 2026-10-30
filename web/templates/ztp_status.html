@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="inventory-page">
+  <div class="page-heading"><div><span class="eyebrow">ZTP ONBOARDING</span><h1>{{ job.hostname }}</h1><p>Management IPv4: {{ job.management_ip }}/24</p></div></div>
+  <section class="surface add-form-section" id="ztp-progress" data-status-url="{{ url_for('ztp_device_status', job_id=job.job_id, format='json') }}">
+    {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+    <h2 id="ztp-state">{{ job.state }}</h2>
+    <p id="ztp-message" aria-live="polite">{{ job.message }}</p>
+    <p>Preparing → Deploying → Waiting for ZTP → Ready</p>
+    <a id="ztp-ready" class="btn btn-primary" href="{{ url_for('device_detail', hostname=job.hostname) }}"{% if job.state != 'Ready' %} hidden{% endif %}>Open device</a>
+    <form id="ztp-retry" method="post" autocomplete="off"{% if job.state != 'Failed' and job.started %} hidden{% endif %}>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label class="form-label" for="retry-password">Existing recovery password</label>
+      <input id="retry-password" class="form-control" name="recovery_password" type="password" required maxlength="128" autocomplete="new-password">
+      <p class="form-text">Retry uses this attempt's device only. It never resets, recreates, or replaces a device.</p>
+      <button type="submit" class="btn btn-primary">Retry this device</button>
+    </form>
+    <p><a href="{{ url_for('add_device', mode='ztp') }}">Back to Add Device</a></p>
+  </section>
+</div>
+<script src="{{ url_for('static', filename='ztp-status.js') }}" defer></script>
+{% endblock %}

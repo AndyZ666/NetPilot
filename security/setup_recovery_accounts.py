@@ -16,6 +16,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import threading
 import warnings
 
 # Permit both `python -m security.setup_recovery_accounts` and direct script use.
@@ -36,6 +37,7 @@ _CATEGORIES = frozenset({"inventory", "authorization", "credentials", "password_
                         "enable_failed", "enable_mode", "privilege_read",
                         "configuration", "account_conflict", "unsaved_changes", "concurrent_change",
                         "apply", "verification", "save", "interrupted", "locked"})
+_TRANSPORT_LOG_LOCK = threading.RLock()
 
 _ERROR_DETAILS = {
     "enable_failed": "Could not enter Privileged EXEC; check EOS enable authentication and authorization.",
@@ -89,12 +91,15 @@ def sha512_crypt(password, *, allow_legacy=False):
 @contextmanager
 def quiet_transport():
     """Netmiko DEBUG logs can include full configurations and command echoes."""
-    previous = logging.root.manager.disable
-    logging.disable(sys.maxsize)
-    try:
-        yield
-    finally:
-        logging.disable(previous)
+    # Background onboarding and GUI observations share logging's process-wide
+    # switch. Serialize contexts so one thread cannot re-enable another's logs.
+    with _TRANSPORT_LOG_LOCK:
+        previous = logging.root.manager.disable
+        logging.disable(sys.maxsize)
+        try:
+            yield
+        finally:
+            logging.disable(previous)
 
 
 @contextmanager

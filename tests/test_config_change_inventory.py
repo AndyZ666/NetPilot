@@ -96,7 +96,11 @@ class InventoryAliasRegressionTests(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, "Existing renderer failed against a temporary updated inventory.")
         devices = yaml.safe_load(updated)["devices"]
-        self.assertEqual({path.stem for path in output.glob("*.cfg")}, set(devices))
+        # Pending Lab 8 targets stay in NSOT but must not join normal rendering.
+        self.assertTrue(REAL_DEVICES.issubset(devices))
+        for name in set(devices) - REAL_DEVICES:
+            self.assertEqual(devices[name]["onboarding"]["status"], "pending")
+        self.assertEqual({path.stem for path in output.glob("*.cfg")}, REAL_DEVICES)
         self.assertTrue(all(path.stat().st_size > 0 for path in output.glob("*.cfg")))
 
     def test_current_anchored_inventory_all_three_changes_preserve_data_and_render(self):

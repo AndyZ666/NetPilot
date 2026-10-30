@@ -16,7 +16,42 @@
   <div class="inventory-alert" role="status"><i class="bi bi-info-circle" aria-hidden="true"></i><div><strong>Registration is temporarily unavailable</strong><p>The current inventory could not be safely loaded. Your existing data will remain unchanged.</p></div></div>
   {% endif %}
 
-  <div class="add-device-layout">
+  <div class="surface add-form-section">
+    <label for="add-mode" class="form-label">Add Device mode</label>
+    <select id="add-mode" class="form-select">
+      <option value="inventory">Inventory only</option>
+      <option value="ztp"{% if request.args.get('mode') == 'ztp' %} selected{% endif %}>Provision with ZTP</option>
+    </select>
+  </div>
+  <section id="ztp-mode" class="add-form-section surface"{% if request.args.get('mode') != 'ztp' %} hidden{% endif %}>
+    <h2>Provision with ZTP</h2>
+    <p>Add one Arista cEOS device through the existing bootstrap network. Management IPv4 is assigned automatically; no business links or routing are added.</p>
+    {% if ztp_error %}<div class="inventory-alert" role="alert">{{ ztp_error }}</div>{% endif %}
+    {% if ztp_preview %}
+    <form method="post" action="{{ url_for('start_ztp_device') }}" data-ztp-submit autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="job_id" value="{{ ztp_preview.job_id }}">
+      <p><strong>{{ ztp_preview.hostname }}</strong> · Arista cEOS · <strong>{{ ztp_preview.management_ip }}/24</strong></p>
+      <p>The deployment preview permits only this new device and its bootstrap link.</p>
+      <label for="recovery_password" class="form-label">Existing recovery password</label>
+      <input id="recovery_password" class="form-control" type="password" name="recovery_password" autocomplete="new-password" required maxlength="128">
+      <p class="form-text">Admin credentials are retrieved automatically. This one-time recovery value is never stored or displayed.</p>
+      <button class="btn btn-primary" type="submit">Create &amp; Provision</button>
+    </form>
+    {% else %}
+    <form method="post" action="{{ url_for('preview_ztp_device') }}" data-ztp-submit>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label for="ztp-hostname" class="form-label">Hostname</label>
+      <input id="ztp-hostname" class="form-control" name="hostname" placeholder="R8" required maxlength="32" pattern="[A-Za-z]([A-Za-z0-9-]{0,30}[A-Za-z0-9])?" autocomplete="off">
+      <label for="ztp-platform" class="form-label">Platform</label>
+      <select id="ztp-platform" name="platform" class="form-select"><option value="cEOSLab">Arista cEOS</option></select>
+      <div class="add-form-actions"><button class="btn btn-primary" type="submit"{% if not inventory_available %} disabled{% endif %}>Review hostname &amp; assigned IP</button></div>
+    </form>
+    {% endif %}
+    {% if ztp_jobs %}<h3>Recent onboarding attempts</h3><ul>{% for job in ztp_jobs %}<li><a href="{{ url_for('ztp_device_status', job_id=job.job_id) }}">{{ job.hostname }} · {{ job.management_ip }} · {{ job.state }}</a></li>{% endfor %}</ul>{% endif %}
+  </section>
+
+  <div class="add-device-layout" id="inventory-mode"{% if request.args.get('mode') == 'ztp' %} hidden{% endif %}>
     <form class="add-device-form" action="{{ url_for('add_device') }}" method="post" id="add-device-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
@@ -79,6 +114,14 @@
 
 <script>
 (() => {
+  const mode = document.getElementById('add-mode');
+  mode.addEventListener('change', () => {
+    document.getElementById('inventory-mode').hidden = mode.value === 'ztp';
+    document.getElementById('ztp-mode').hidden = mode.value !== 'ztp';
+  });
+  document.querySelectorAll('[data-ztp-submit]').forEach(ztpForm => ztpForm.addEventListener('submit', () => {
+    ztpForm.querySelector('button[type="submit"]').disabled = true;
+  }));
   const form = document.getElementById('add-device-form');
   const choices = Array.from(form.querySelectorAll('[data-protocol]'));
   function updateProtocolFields() {

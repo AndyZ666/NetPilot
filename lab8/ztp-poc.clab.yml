@@ -1,0 +1,24 @@
+name: netpilot-lab8-ztp
+
+mgmt:
+  network: netpilot-lab8-ztp-mgmt
+  ipv4-subnet: 172.31.250.0/24
+
+topology:
+  nodes:
+    R6:
+      kind: ceos
+      image: ceos:4.36.2F
+      image-pull-policy: Never
+      suppress-startup-config: true
+    ztp-server:
+      kind: linux
+      image: netpilot-lab8-ztp:phase1
+      image-pull-policy: Never
+      restart-policy: "no"
+      cap-add:
+        - NET_ADMIN
+  links:
+    # cEOS eth1 is Ethernet1. Only the server assigns a bootstrap address;
+    # R6 obtains its address and configuration URL through native EOS ZTP.
+    - endpoints: ["R6:eth1", "ztp-server:eth1"]

@@ -58,12 +58,17 @@ def discover_inventory(path=INVENTORY):
         records = inventory["devices"]
         if not isinstance(records, dict):
             raise ValueError
-        if any(name not in FLEET and not name.lower().startswith("test-") for name in records):
+        if any(name not in FLEET and not name.lower().startswith("test-")
+               and not (isinstance(device, dict)
+                        and isinstance(device.get("onboarding"), dict)
+                        and device["onboarding"].get("status") == "pending")
+               for name, device in records.items()):
             raise ValueError
         result = {}
         for name in FLEET:
             device = records[name]
-            if (device.get("hostname", name) != name or device.get("vendor") != "Arista"
+            if (not config_changes.device_is_active(device)
+                    or device.get("hostname", name) != name or device.get("vendor") != "Arista"
                     or device.get("platform") not in ("cEOS", "cEOSLab")):
                 raise ValueError
             management_ip = device["management"]["ipv4"]

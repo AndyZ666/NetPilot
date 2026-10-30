@@ -162,6 +162,53 @@ class CredentialProviderTests(unittest.TestCase):
         provider.os.open.assert_not_called()
         provider.subprocess.run.assert_not_called()
 
+    def test_explicit_secret_reference_reuses_read_only_provider_boundary(self):
+        for reference in (
+                "op://Fixture Vault/Existing Recovery/password",
+                "op://Fixture Vault/Existing Recovery/Account/password"):
+            with self.subTest(reference=reference):
+                provider.subprocess.run.reset_mock()
+                provider.subprocess.run.return_value.stdout = "  fixture-password  \r\n"
+                self.assertEqual(provider.read_secret_reference(reference), "  fixture-password  ")
+                provider.subprocess.run.assert_called_once()
+                arguments, options = provider.subprocess.run.call_args
+                self.assertEqual(arguments, (["op", "read", reference],))
+                self.assertEqual(options["stdin"], subprocess.DEVNULL)
+                self.assertIs(options["shell"], False)
+                self.assertIs(options["check"], True)
+                self.assertNotIn("fixture-password", repr(arguments))
+
+    def test_invalid_secret_references_stop_before_token_or_cli_access(self):
+        for reference in (
+                None, [], {}, "", "Fixture Vault/Existing Recovery/password",
+                "https://vault/item/password", "op://vault/item", "op://vault/item/",
+                "op:///item/password", "op://vault//password", "op://vault/ /password",
+                "op://vault/item/section/nested/password", "op://vault/item/password\n",
+                "op://vault/item/pa\rssword", "op://vault/\titem/password",
+                "op://vault/item/pass\x00word", "op://vault/item/password?attribute=otp",
+                "op://vault/item/password#fragment"):
+            with self.subTest(reference=reference), self.assertRaisesRegex(
+                    ValueError, "^Invalid 1Password secret reference$"):
+                provider.read_secret_reference(reference)
+        provider.os.open.assert_not_called()
+        provider.subprocess.run.assert_not_called()
+
+    def test_missing_explicit_secret_fails_without_fallback_or_secret_output(self):
+        provider.subprocess.run.side_effect = subprocess.CalledProcessError(
+            1, ["op"], output="fixture-password LEAK-MARKER", stderr="LEAK-MARKER")
+        self.assert_safe_failure(
+            lambda: provider.read_secret_reference("op://Fixture Vault/Existing Recovery/password"),
+            "Failed to retrieve 1Password credential")
+        provider.subprocess.run.assert_called_once()
+
+    def test_empty_explicit_secret_is_rejected(self):
+        for output in ("", "\r\n", " \t "):
+            with self.subTest(output=output):
+                provider.subprocess.run.return_value.stdout = output
+                self.assert_safe_failure(
+                    lambda: provider.read_secret_reference("op://Fixture Vault/Existing Recovery/password"),
+                    "Missing device credentials in 1Password")
+
     def test_missing_token_has_no_environment_fallback(self):
         provider.os.open.side_effect = FileNotFoundError("LEAK-MARKER")
         self.assert_safe_failure(provider.get_credentials, "1Password token file missing")

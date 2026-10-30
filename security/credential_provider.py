@@ -110,6 +110,27 @@ def read_secret(field):
     return _require_value(_run_op(["read", reference]).rstrip("\r\n"))
 
 
+def validate_secret_reference(reference):
+    """Validate a public field reference without reading credentials or a token."""
+    if (not isinstance(reference, str) or not reference.startswith("op://")
+            or not reference.isprintable() or "?" in reference or "#" in reference):
+        raise ValueError("Invalid 1Password secret reference")
+    parts = reference[5:].split("/")
+    if len(parts) not in (3, 4) or any(not part.strip() for part in parts):
+        raise ValueError("Invalid 1Password secret reference")
+    return reference
+
+
+def read_secret_reference(reference):
+    """Read an explicit existing field through the same service-account boundary.
+
+    No Vault/item is guessed and no alternative authentication is attempted.
+    References contain public names only; returned values stay in memory.
+    """
+    reference = validate_secret_reference(reference)
+    return _require_value(_run_op(["read", reference]).rstrip("\r\n"))
+
+
 def get_credentials():
     """Read a username/password pair from one item response, without caching.
 

@@ -98,6 +98,11 @@ def validate_running_config(hostname, config, *, expected_hostname=None):
 # ============================================================
 
 def get_running_config(hostname, device, username, password):
+    onboarding = device.get("onboarding")
+    if "onboarding" in device and (
+        not isinstance(onboarding, dict) or onboarding.get("status") != "verified"
+    ):
+        raise RuntimeError("Device onboarding verification is incomplete.")
     mgmt_ip = device["management"]["ipv4"]
 
     connection_info = {
@@ -286,7 +291,10 @@ def main():
     if requested_devices:
         targets = requested_devices
     else:
-        targets = list(devices.keys())
+        targets = [name for name, device in devices.items()
+                   if "onboarding" not in device
+                   or isinstance(device["onboarding"], dict)
+                   and device["onboarding"].get("status") == "verified"]
 
     print()
     print("============================================================")

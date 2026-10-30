@@ -1,0 +1,24 @@
+name: netpilot-ztp-infra
+
+mgmt:
+  network: netpilot-ztp-infra-mgmt
+  ipv4-subnet: 172.31.251.0/24
+
+topology:
+  nodes:
+    ztp-server:
+      kind: linux
+      image: netpilot-lab8-ztp:gui
+      image-pull-policy: Never
+      restart-policy: "no"
+      cap-add:
+        - NET_ADMIN
+      # Phase 3B preparation: effective only on a future explicit deployment.
+      # Preserve the image's original /srv/ztp/R6.cfg; serve Day-0 separately.
+      binds:
+        - ../runtime/lab8-ztp/http:/srv/ztp/day0:ro
+        - /var/lib/netpilot-ztp/dhcp:/srv/ztp-dhcp:ro
+        - ./day0-dnsmasq.conf:/etc/dnsmasq.conf:ro
+  links:
+    # connect-bootstrap.sh attaches this host endpoint to the bootstrap bridge.
+    - endpoints: ["ztp-server:eth1", "host:npztp-srv"]

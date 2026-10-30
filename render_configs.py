@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import argparse
+import ipaddress
+import re
 import sys
 import yaml
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
@@ -16,7 +18,30 @@ def load_yaml(path: Path):
         return yaml.safe_load(f)
 
 
-def render_device(env, inventory, hostname: str) -> str:
+def _validate_day0_device(device, hostname):
+    """Require a pending device and verified management address evidence."""
+    try:
+        onboarding = device["onboarding"]
+        management = device["management"]
+        if (device["hostname"] != hostname
+                or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]{0,62}", hostname)
+                or onboarding["status"] != "pending"
+                or onboarding["management_verified"] is not True
+                or management["interface"] != "Management0"
+                or not isinstance(management["ipv4"], str)
+                or not isinstance(management["ipv4_prefix"], str)
+                or "/" not in management["ipv4_prefix"]):
+            raise ValueError
+        address = ipaddress.IPv4Address(management["ipv4"])
+        interface = ipaddress.IPv4Interface(management["ipv4_prefix"])
+        if (interface.ip != address or address.is_unspecified
+                or address.is_multicast or address.is_loopback):
+            raise ValueError
+    except (KeyError, TypeError, ValueError, AttributeError):
+        raise ValueError("Day-0 requires a pending device and verified management IPv4.") from None
+
+
+def render_device(env, inventory, hostname: str, *, day0_hashes=None) -> str:
     devices = inventory.get("devices", {})
     if hostname not in devices:
         raise KeyError(f"Device '{hostname}' not found in NSOT")
@@ -24,6 +49,14 @@ def render_device(env, inventory, hostname: str) -> str:
     device = devices[hostname]
     template_path = device.get("template") or inventory["network"]["defaults"]["template"]
     template_name = Path(template_path).name
+    if template_name == "arista_day0.j2":
+        _validate_day0_device(device, hostname)
+        if (not isinstance(day0_hashes, dict)
+                or set(day0_hashes) != {"admin", "netpilot-recovery"}
+                or any(not isinstance(value, str) or not re.fullmatch(
+                    r"\$6\$(?:rounds=[0-9]+\$)?[./A-Za-z0-9]{1,16}\$[./A-Za-z0-9]{86}", value)
+                    for value in day0_hashes.values())):
+            raise ValueError("Day-0 requires both permanent account hashes; use python -m lab8.day0 render.")
     template = env.get_template(template_name)
 
     return template.render(
@@ -31,6 +64,7 @@ def render_device(env, inventory, hostname: str) -> str:
         network=inventory.get("network", {}),
         routing_domains=inventory.get("routing_domains", {}),
         metadata=inventory.get("metadata", {}),
+        day0_hashes=day0_hashes,
     ).strip() + "\n"
 
 
@@ -59,7 +93,11 @@ def main():
         keep_trailing_newline=True,
     )
 
-    targets = [args.device] if args.device else list(devices.keys())
+    targets = [args.device] if args.device else [
+        name for name, device in devices.items()
+        if "onboarding" not in device or isinstance(device["onboarding"], dict)
+        and device["onboarding"].get("status") == "verified"
+    ]
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"NSOT: {inventory_path}")

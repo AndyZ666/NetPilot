@@ -96,12 +96,23 @@ def load_inventory(path=None):
     return _read_inventory(path)[1]
 
 
+def device_is_active(device):
+    """Legacy devices stay active; new onboarding records require verification."""
+    return isinstance(device, dict) and (
+        "onboarding" not in device
+        or isinstance(device["onboarding"], dict)
+        and device["onboarding"].get("status") == "verified"
+    )
+
+
 def get_device(inventory, hostname):
     if not isinstance(hostname, str) or not _DEVICE_NAME.fullmatch(hostname):
         raise ChangeError("Select a valid inventory device.")
     device = inventory.get("devices", {}).get(hostname)
     if not isinstance(device, dict):
         raise ChangeError("The selected device is no longer in the inventory.")
+    if not device_is_active(device):
+        raise ChangeError("The selected device has not completed onboarding verification.")
     defaults = inventory.get("network", {}).get("defaults", {})
     vendor = str(device.get("vendor", defaults.get("vendor", ""))).lower()
     platform = str(device.get("platform", defaults.get("platform", ""))).lower()

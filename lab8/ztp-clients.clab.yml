@@ -1,0 +1,27 @@
+# Isolated bootstrap test topology; production R6/R7 belong in ../nettopo.clab.yml.
+# Never run test R6 and production R6 together: they share npztp-r6 and its MAC.
+# Use the original PoC configuration or a test-address candidate, not production Day-0.
+name: netpilot-ztp-clients
+
+mgmt:
+  network: netpilot-ztp-clients-mgmt
+  ipv4-subnet: 172.31.252.0/24
+
+topology:
+  nodes:
+    R6:
+      kind: ceos
+      image: ceos:4.36.2F
+      image-pull-policy: Never
+      suppress-startup-config: true
+      # Test-only management address; this network is not the production clab network.
+      mgmt-ipv4: 172.31.252.2
+  links:
+    - type: host
+      endpoint:
+        node: R6
+        interface: eth1
+        # Observed Ethernet1 MAC, not Docker's Management0 MAC.
+        mac: aa:c1:ab:da:73:76
+      host-interface: npztp-r6
+    # Do not add R7 here. Its final definition and bootstrap link are in nettopo.

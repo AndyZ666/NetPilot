@@ -1697,6 +1697,155 @@ devices:
         ipv6: {}
       route_maps: {}
     vlans: {}
+  # Lab 8 targets are deliberately excluded from normal fleet operations.
+  R6:
+    hostname: R6
+    role: onboarding_router
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F
+    management:
+      interface: Management0
+      ipv4: 172.20.20.30
+      ipv4_prefix: 172.20.20.30/24
+      ipv6: null
+    template: templates/arista_day0.j2
+    onboarding:
+      status: pending
+      management_verified: true
+      management_network: clab
+      bootstrap_mac: aa:c1:ab:da:73:76
+    interfaces:
+      Management0:
+        description: Lab 8 pilot-network management
+        admin_state: up
+        forwarding_model: routed
+        ipv4: [172.20.20.30/24]
+        ipv6: []
+        peer: null
+    routing:
+      ospfv2: {enabled: false}
+      ospfv3: {enabled: false}
+      ripv2: {enabled: false}
+      bgp: {enabled: false}
+    redistribution: []
+    policy:
+      prefix_lists: {ipv4: {}, ipv6: {}}
+      route_maps: {}
+    vlans: {}
+  R7:
+    hostname: R7
+    role: onboarding_router
+    vendor: Arista
+    platform: cEOSLab
+    software_version: 4.36.2F
+    management:
+      interface: Management0
+      ipv4: 172.20.20.31
+      ipv4_prefix: 172.20.20.31/24
+      ipv6: null
+    template: templates/arista_day0.j2
+    onboarding:
+      status: pending
+      management_verified: true
+      management_network: clab
+      bootstrap_mac: 02:00:00:08:00:07
+    interfaces:
+      Management0:
+        description: Lab 8 pilot-network management
+        admin_state: up
+        forwarding_model: routed
+        ipv4: [172.20.20.31/24]
+        ipv6: []
+        peer: null
+    routing:
+      ospfv2: {enabled: false}
+      ospfv3: {enabled: false}
+      ripv2: {enabled: false}
+      bgp: {enabled: false}
+    redistribution: []
+    policy:
+      prefix_lists: {ipv4: {}, ipv6: {}}
+      route_maps: {}
+    vlans: {}
+  R8:
+    hostname: R8
+    role: edge_router
+    vendor: Arista
+    platform: cEOSLab
+    management:
+      interface: Management0
+      ipv4: 172.20.20.17
+      ipv4_prefix: 172.20.20.17/24
+    template: templates/arista_ceos.j2
+    interfaces:
+      Management0:
+        admin_state: up
+        ipv4:
+        - 172.20.20.17/24
+    routing:
+      ospfv2:
+        enabled: false
+      ospfv3:
+        enabled: false
+      ripv2:
+        enabled: false
+      bgp:
+        enabled: false
+    redistribution: []
+    policy:
+      prefix_lists:
+        ipv4: {}
+        ipv6: {}
+      route_maps: {}
+    vlans: {}
+    onboarding:
+      status: pending
+      management_verified: true
+      management_network: clab
+      bootstrap_mac: 02:08:99:c6:6b:8e
+      job_id: 8ecd7f23f8e9c46309ac373403c2f126
+      ztp_status: ready
+      verified_at: '2026-10-27T05:19:30.800158+00:00'
+  R9:
+    hostname: R9
+    role: edge_router
+    vendor: Arista
+    platform: cEOSLab
+    management:
+      interface: Management0
+      ipv4: 172.20.20.18
+      ipv4_prefix: 172.20.20.18/24
+    template: templates/arista_ceos.j2
+    interfaces:
+      Management0:
+        admin_state: up
+        ipv4:
+        - 172.20.20.18/24
+    routing:
+      ospfv2:
+        enabled: false
+      ospfv3:
+        enabled: false
+      ripv2:
+        enabled: false
+      bgp:
+        enabled: false
+    redistribution: []
+    policy:
+      prefix_lists:
+        ipv4: {}
+        ipv6: {}
+      route_maps: {}
+    vlans: {}
+    onboarding:
+      status: pending
+      management_verified: true
+      management_network: clab
+      bootstrap_mac: 02:08:79:4d:9d:1a
+      job_id: f13c77b05d2db5915556357d596f182e
+      ztp_status: ready
+      verified_at: '2026-10-27T06:08:47.825055+00:00'
 endpoints:
   H1:
     type: host
